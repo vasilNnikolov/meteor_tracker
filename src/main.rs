@@ -3,7 +3,7 @@ mod coordinates;
 
 fn main() {
     println!("Hello, world!");
-    if let Err(e) = coordinates::generate_database::generate_db(1.1, 2) {
+    if let Err(e) = coordinates::generate_database::generate_db(1.1, 1) {
         println!("{}", e);
     }
 }
