@@ -36,13 +36,19 @@ fn read_hyd_database() -> Result<Vec<Star>, String> {
     Ok(stars)
 }
 
-/// takes the limiting magnitude and the number of stars to be included in the flower pattern, and 
-/// generates a database of DFT coefficients for the functions r(i) - the distance from the central
-/// star to petel number i, and 
+/// takes the limiting magnitude and the number of stars to be included in the flower pattern, and generates a database of DFT coefficients 
+/// for the functions r(i) - the distance from the central star to petel number i, and \delta(i) - the angle between the lines connecting the i-th and (i+1)-th star and the central one
 pub fn generate_db(m_lim: f64, k: u16) -> Result<(), String>{
-    let stars = read_hyd_database()?; 
-    for i in 0..10 {
-        println!("{:?}", stars.get(i).unwrap())
+    let all_stars = read_hyd_database()?; 
+    let mut brightest_n_stars: Vec<Star> = vec![];
+
+    for s in all_stars {
+        if s.brightness <= m_lim {
+            brightest_n_stars.push(s);
+        } else { break; }
     }
+    // TODO for each star generate the flower pattern, generate their DFTs and write them to
+    // database
+
     Ok(())
 }
