@@ -1,7 +1,9 @@
+mod parse_stars;
 mod coordinates;
-
-use coordinates::star;
 
 fn main() {
     println!("Hello, world!");
+    if let Err(e) = coordinates::generate_database::generate_db(1.1, 2) {
+        println!("{}", e);
+    }
 }

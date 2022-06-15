@@ -1,1 +1,1 @@
-pub mod star;
+pub mod generate_database;
