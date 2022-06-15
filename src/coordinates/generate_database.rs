@@ -8,36 +8,41 @@ fn read_hyd_database() -> Result<Vec<Star>, String> {
         Ok(f) => f, 
         Err(_) => return Err(String::from("could not open hyg database file"))
     };
+
     let buff_reader = BufReader::new(file);
-    let mut stars: Vec<Star> = vec![];
     let mut iter = buff_reader.lines().map(|l| l.unwrap()).enumerate();
     iter.next(); // the heading 
+
+    let mut stars: Vec<Star> = vec![];
     for (index, line) in iter{
         let line_contents = line.split(',').collect::<Vec<&str>>();
-        if line_contents.len() != 3 as usize {
+        if line_contents.len() != 4 as usize {
             return Err("The hyg star db has a line with more or less than 3 entries".to_string());
         } 
+        let mut line_contents_float: [f64; 4] = [0.0; 4];
+        for i in 0..4 {
+            let x = line_contents[i].parse::<f64>();
+            match x {
+                Err(_) => return Err(format!("Bad data on row {} of HYG database", index)), 
+                Ok(f) => line_contents_float[i] = f
+            }
+        }
+        let [index, ra, dec, brightness] = line_contents_float;
 
-        let ra = match line_contents[0].parse::<f64>() {
-            Ok(ra) => ra, 
-            Err(_) => return Err(format!("rigth asc on row {} is not float", index))
-        };
-        let dec = match line_contents[1].parse::<f64>() {
-            Ok(ra) => ra, 
-            Err(_) => return Err(format!("dec on row {} is not float", index))
-        };
-        let brightness = match line_contents[2].parse::<f64>() {
-            Ok(ra) => ra, 
-            Err(_) => return Err(format!("brightness on row {} is not float", index))
-        };
-
-        stars.push(Star::new(ra*std::f64::consts::PI/180.0, dec*std::f64::consts::PI/180.0, brightness));
+        stars.push(Star::new(
+                ra*std::f64::consts::PI/180.0, 
+                dec*std::f64::consts::PI/180.0, 
+                brightness, 
+                index as i32));
     }
     Ok(stars)
 }
 
-/// takes the limiting magnitude and the number of stars to be included in the flower pattern, and generates a database of DFT coefficients 
-/// for the functions r(i) - the distance from the central star to petel number i, and \delta(i) - the angle between the lines connecting the i-th and (i+1)-th star and the central one
+/// Generates a file of DFT coefficients for flower patterns. 
+/// m_lim - the limiting magnitude of the camera
+/// k - the number of outer stars in the flower pattern, approx 10, maybe more
+/// It creates a file with N entries, N being the number of stars brighter than m_lim, and for each one stores the DFT coefficients
+/// of r(i) - distance between the central star and star number i of the petels, and delta(i) - angle between the petel i and (i + 1)
 pub fn generate_db(m_lim: f64, k: u16) -> Result<(), String>{
     let all_stars = read_hyd_database()?; 
     let mut brightest_n_stars: Vec<Star> = vec![];
