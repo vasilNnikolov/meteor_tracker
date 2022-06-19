@@ -33,7 +33,7 @@ fn read_hyd_database() -> Result<Vec<Star>, String> {
                 ra*std::f64::consts::PI/180.0, 
                 dec*std::f64::consts::PI/180.0, 
                 brightness, 
-                index as i32));
+                index as u16));
     }
     Ok(stars)
 }
