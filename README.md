@@ -22,6 +22,11 @@ This module receives as input the vector of stars and their relative brightnesse
 
 The $x$ axis is from the center of the Earth to the point of spring equinox $\gamma$, the $z$ axis is from the center of the Earth to the North Pole and the $y$ axis is such that the coordinate system is orthogonal and right-handed $(\hat{x} \times \hat{y} = \hat{z})$
 
+#### Sky coordinate system
+
+This is the system which specifies how to generate the flower pattern for the catalogue stars. The $x$ axis will always be parallel to the $xy$ plane of the geocentric coordinate system, and the $z$ axis will always point up. The $y$ axis is such that the coordinate system is orthogonal and right-handed $(\hat{x} \times \hat{y} = \hat{z})$. Specifying this coordinate system is important because the $x$ axis in particular is used to calculate the ordering of the $k$ brightest stars in the FOV around a central star, as described in the [flower pattern](#flower-pattern) section.
+
+
 #### Camera coordinate system 
 
 The $x$ axis is from the center of the picture to the right, the $z$ axis is from the center of the picture going up, and the $y$ axis is perpendicular to the picture, going in the direction of shooting (to the sky).
@@ -32,7 +37,7 @@ From the [HYG Star database](https://github.com/astronexus/HYG-Database) we extr
 
 #### Flower pattern
 
-A central star is picked. For it the $k \approx 10$ brightest stars in the FOV are found, and we take note of the distance between the central star and each of these stars, as well as the angle between adjacent lines connecting the central star with the outer ones. Let the distances to the $i$-th brightest star be $r_i, i \in [1..k]$, and let the angular separation between stars $i$ and $i+1$ be $\delta_i$. The star with index $1$ from the outer ones is picked as the first past the $x$ axis, rotating counter-clockwise. Then in the database of stars we will store the fourier series of $r(i) = r_i$ and $\delta(i) = \delta_i$. These are invariant under translation, and under rotation the functions $r'(i) = r(i - \tau)$, and $\delta'(i) = \delta(i - \tau)$. The variable \tau can be found using phase correlation with all the stars in the database. The best match is selected, and from it the rotation matrix is computed. 
+A central star is picked. For it the $k \approx 10$ brightest stars in the FOV are found, and we take note of the distance between the central star and each of these stars, as well as the angle between adjacent lines connecting the central star with the outer ones. We number the stars in the flower pattern with indexes $[1..k]$, where the star of index $1$ in the flower pattern is the first one, rotating anti-clockwise, after the $x$ axis of the "camera", as described in the [sky coordinate system](#sky-coordinate-system) section. Let the distances to the $i$-th brightest star be $r_i, i \in [1..k]$, and let the angular separation between stars $i$ and $i+1$ be $\delta_i$. The star with index $1$ from the outer ones is picked as the first past the $x$ axis, rotating counter-clockwise. Then in the database of stars we will store the fourier series of $r(i) = r_i$ and $\delta(i) = \delta_i$. These are invariant under translation, and under rotation the functions $r'(i) = r(i - \tau)$, and $\delta'(i) = \delta(i - \tau)$. The variable \tau can be found using phase correlation with all the stars in the database. The best match is selected, and from it the rotation matrix is computed. 
 
 ## Meteor detection
 
