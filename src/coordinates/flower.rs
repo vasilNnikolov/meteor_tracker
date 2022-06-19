@@ -23,6 +23,15 @@ fn angle_of_outer_petel(central_star: &Star, outer_star: &Star) -> f64 {
     1.1
 }
 
+fn delta_angle(central_star: &Star, petel_i: &Star, petel_i_plus_1: &Star) -> f64 {
+    let delta_i = angle_of_outer_petel(central_star, petel_i_plus_1) - angle_of_outer_petel(central_star, petel_i);
+    if delta_i < 0.0 {
+        return delta_i + 2.0*std::f64::consts::PI;
+    } else {
+        return delta_i;
+    }
+}
+
 impl FlowerPattern {
     /// generates the flower pattern for a star
     /// index - the index of the central star according to the HYG db
@@ -42,9 +51,10 @@ impl FlowerPattern {
 
         // dot product of the coordinates should be larger than cos(FOV) in order for the star to
         // be in the FOV
-        let mut stars_in_fov: Vec<&Star> = stars.iter().filter(|&s| {
+        let stars_in_fov: Vec<&Star> = stars.iter().filter(|&s| {
             star::cos_angle_between_stars(central_star, s) > fov.cos()
         }).collect();
+
         // take first k brightest stars
         if stars_in_fov.len() < k as usize {
             return Err(String::from(format!("There are {} stars in the fov, more than k={}", stars_in_fov.len(), k)));
@@ -56,6 +66,14 @@ impl FlowerPattern {
         stars_in_fov.sort_by(|&a, &b| {
             angle_of_outer_petel(central_star, a).partial_cmp(&angle_of_outer_petel(central_star, b)).unwrap() 
         });
+
+        for i in 0..k as usize {
+            let petel = stars_in_fov[i];
+            let next_petel = stars_in_fov[(i + 1) % k as usize];
+            outer_stars.push(*petel);
+            radius.push(star::angle_between_stars(&petel, central_star));
+            delta.push(delta_angle(central_star, petel, next_petel));
+        }
 
         Ok(FlowerPattern {
             center_star_index: index, 
