@@ -1,5 +1,7 @@
 use crate::parse_stars::star::Star;  
 use crate::parse_stars::star;
+
+use nalgebra::{Vector3, Matrix3};
 pub struct FlowerPattern {
     /// the index of the center star, according to the hyg database
     /// indeces start at 1, and bigger index means less bright star
@@ -21,9 +23,19 @@ pub struct FlowerPattern {
 fn angle_of_outer_petel(central_star: &Star, outer_star: &Star) -> f64 {
     // TODO implement delta funcion
     let y_prime = central_star.coords;
-    let x_prime = [y_prime[1], -y_prime[0], 0];
-     
-    1.1
+    let x_prime = y_prime.cross(&Vector3::new(0.0, 0.0, 1.0));
+    let z_prime = x_prime.cross(&y_prime);
+
+    let R = Matrix3::from_columns(&[x_prime, y_prime, z_prime]);
+    let R_inv = R.try_inverse().unwrap();
+
+    let petel_new_coords = R_inv*outer_star.coords;
+    let petel_angle = petel_new_coords[(2, 0)].atan2(petel_new_coords[(0, 0)]);
+    if petel_angle < 0.0 {
+        return petel_angle + 2*std::f64::consts::PI;
+    } else {
+        return petel_angle;
+    }
 }
 
 fn delta_angle(central_star: &Star, petel_i: &Star, petel_i_plus_1: &Star) -> f64 {
