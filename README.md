@@ -24,7 +24,7 @@ The $x$ axis is from the center of the Earth to the point of spring equinox $\ga
 
 #### Sky coordinate system
 
-This is the system which specifies how to generate the flower pattern for the catalogue stars. The $x$ axis will always be parallel to the $xy$ plane of the geocentric coordinate system, and the $z$ axis will always point up. The $y$ axis is such that the coordinate system is orthogonal and right-handed $(\hat{x} \times \hat{y} = \hat{z})$. Specifying this coordinate system is important because the $x$ axis in particular is used to calculate the ordering of the $k$ brightest stars in the FOV around a central star, as described in the [flower pattern](#flower-pattern) section.
+This is the system which specifies how to generate the flower pattern for the catalogue stars. The $x$ axis will always be parallel to the $xy$ plane of the geocentric coordinate system, and when looked from the North pole should point clockwise. The $y$ axis is radial from the center of the celestial sphere. The $z$ axis is such that this coordinate system is right-handed. Specifying this coordinate system is important because the $x$ axis in particular is used to calculate the ordering of the $k$ brightest stars in the FOV around a central star, as described in the [flower pattern](#flower-pattern) section.
 
 
 #### Camera coordinate system 
