@@ -20,6 +20,9 @@ pub struct FlowerPattern {
 /// It is used to order the stars around the central star when generating the flower pattern
 fn angle_of_outer_petel(central_star: &Star, outer_star: &Star) -> f64 {
     // TODO implement delta funcion
+    let y_prime = central_star.coords;
+    let x_prime = [y_prime[1], -y_prime[0], 0];
+     
     1.1
 }
 
