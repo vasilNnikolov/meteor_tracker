@@ -20,8 +20,7 @@ pub struct FlowerPattern {
 /// a helper function which computes the angle between the x axis of the camera (see Sky coordinate
 /// system) in README, and a given star, in radians
 /// It is used to order the stars around the central star when generating the flower pattern
-fn angle_of_outer_petel(central_star: &Star, outer_star: &Star) -> f64 {
-    // TODO implement delta funcion
+pub fn angle_of_outer_petel(central_star: &Star, outer_star: &Star) -> f64 {
     let y_prime = central_star.coords;
     let x_prime = y_prime.cross(&Vector3::new(0.0, 0.0, 1.0));
     let z_prime = x_prime.cross(&y_prime);
@@ -31,13 +30,16 @@ fn angle_of_outer_petel(central_star: &Star, outer_star: &Star) -> f64 {
 
     let petel_new_coords = R_inv*outer_star.coords;
     let petel_angle = petel_new_coords[(2, 0)].atan2(petel_new_coords[(0, 0)]);
+
+    // return angle in range [0, 2pi)
     if petel_angle < 0.0 {
-        return petel_angle + 2*std::f64::consts::PI;
+        return petel_angle + 2.0*std::f64::consts::PI;
     } else {
         return petel_angle;
     }
 }
 
+/// the angle between two adjacent outer stars
 fn delta_angle(central_star: &Star, petel_i: &Star, petel_i_plus_1: &Star) -> f64 {
     let delta_i = angle_of_outer_petel(central_star, petel_i_plus_1) - angle_of_outer_petel(central_star, petel_i);
     if delta_i < 0.0 {
@@ -54,7 +56,7 @@ impl FlowerPattern {
     /// fov - RADIUS of the field of view of the camera, fov = min(w, h)/2 where w and h are the
     /// sizes of the camera field in radians
     /// stars - the list of all stars as generated from the HYG db
-    pub fn generate(index: u16, k: u16, fov: f64, stars: Vec<Star>) -> Result<FlowerPattern, String> {
+    pub fn generate(index: u16, k: u16, fov: f64, stars: &Vec<Star>) -> Result<FlowerPattern, String> {
         let mut outer_stars: Vec<Star> = vec![];
         let mut radius: Vec<f64> = vec![];
         let mut delta: Vec<f64> = vec![];
@@ -67,7 +69,9 @@ impl FlowerPattern {
         // dot product of the coordinates should be larger than cos(FOV) in order for the star to
         // be in the FOV
         let stars_in_fov: Vec<&Star> = stars.iter().filter(|&s| {
-            star::cos_angle_between_stars(central_star, s) > fov.cos()
+            let cos_angle = star::cos_angle_between_stars(central_star, s);
+            // the second portion is so it does not include the central star itself
+            cos_angle > fov.cos() && cos_angle < 0.9999
         }).collect();
 
         // take first k brightest stars

@@ -21,12 +21,23 @@ pub fn angle_between_stars(s1: &Star, s2: &Star) -> f64 {
 }
 
 impl Star {
+    /// generates a Star struct
+    /// ra - right ascention in radians
+    /// dec - declination in radians
+    /// brightness - brightness in visual magnitudes
     pub fn new(ra: f64, dec: f64, brightness: f64, index: u16) -> Star {
         Star {
             index,
             coords: Vector3::new(dec.cos()*ra.cos(), dec.cos()*ra.sin(), dec.sin()),
             brightness
         }     
+    }
+    /// returns a tuple of (right ascention, declination) of the star, both in radians
+    pub fn get_ra_dec(&self) -> (f64, f64) {
+        let (x, y, z) = (self.coords.x, self.coords.y, self.coords.z);
+        let dec = z.asin();
+        let ra = y.atan2(x);
+        (ra, dec)
     }
 }
 
