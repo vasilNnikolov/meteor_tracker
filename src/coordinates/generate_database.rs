@@ -4,7 +4,7 @@ use std::io::{BufReader, prelude::*};
 
 /// tries to read HYG db, if successful returns a vector of stars
 /// note: the indexes of the stars in the Star struct start at 1 
-fn read_hyd_database() -> Result<Vec<Star>, String> {
+pub fn read_hyd_database() -> Result<Vec<Star>, String> {
     let file_path = "data/hyg_data.csv";
     let file = match File::open(file_path) {
         Ok(f) => f, 
@@ -34,7 +34,7 @@ fn read_hyd_database() -> Result<Vec<Star>, String> {
         let [index, ra, dec, brightness] = line_contents_float;
 
         stars.push(Star::new(
-                ra*std::f64::consts::PI/180.0, 
+                ra*15.0*std::f64::consts::PI/180.0, 
                 dec*std::f64::consts::PI/180.0, 
                 brightness, 
                 index as u16));
