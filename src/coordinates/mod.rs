@@ -6,17 +6,16 @@ mod tests {
     use super::*;
     #[test]
     fn test_file_read() {
-        let all_stars = generate_database::read_hyd_database().unwrap();
+        let all_stars = generate_database::read_hyd_database(4.0).unwrap();
         for i in 0..5 {
             println!("{:?}", all_stars[i]);
         }
         let (ra, dec) = all_stars[0].get_ra_dec();
         println!("sirius ra {}, dec {}, brightness {}", ra*57.295, dec*57.295, all_stars[0].brightness);
     }
-
     #[test]
     fn test_sirius_pattern() {
-        let all_stars = generate_database::read_hyd_database().unwrap();
+        let all_stars = generate_database::read_hyd_database(4.0).unwrap();
         let sirius_pattern = flower::FlowerPattern::generate(1, 5, 0.35, &all_stars).unwrap();
         let n = sirius_pattern.outer_stars.len(); 
         for i in 0..n {
@@ -32,7 +31,7 @@ mod tests {
     }
     #[test]
     fn test_canopus_pattern() {
-        let all_stars = generate_database::read_hyd_database().unwrap();
+        let all_stars = generate_database::read_hyd_database(4.0).unwrap();
         let canopus_pattern = flower::FlowerPattern::generate(2, 5, 0.35, &all_stars).unwrap();
         let n = canopus_pattern.outer_stars.len(); 
         for i in 0..n {

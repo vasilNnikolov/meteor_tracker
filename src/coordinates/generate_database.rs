@@ -4,7 +4,8 @@ use std::io::{BufReader, prelude::*};
 
 /// tries to read HYG db, if successful returns a vector of stars
 /// note: the indexes of the stars in the Star struct start at 1 
-pub fn read_hyd_database() -> Result<Vec<Star>, String> {
+/// m_lim - the limiting magnitude of the camera, and tha highest magnitude in the resulting vector
+pub fn read_hyd_database(m_lim: f64) -> Result<Vec<Star>, String> {
     let file_path = "data/hyg_data.csv";
     let file = match File::open(file_path) {
         Ok(f) => f, 
@@ -33,6 +34,9 @@ pub fn read_hyd_database() -> Result<Vec<Star>, String> {
         }
         let [index, ra, dec, brightness] = line_contents_float;
 
+        if brightness > m_lim {
+            break;
+        }
         stars.push(Star::new(
                 ra*15.0*std::f64::consts::PI/180.0, 
                 dec*std::f64::consts::PI/180.0, 
@@ -48,7 +52,7 @@ pub fn read_hyd_database() -> Result<Vec<Star>, String> {
 /// It creates a file with N entries, N being the number of stars brighter than m_lim, and for each one stores the DFT coefficients
 /// of r(i) - distance between the central star and star number i of the petels, and delta(i) - angle between the petel i and (i + 1)
 pub fn generate_db(m_lim: f64, k: u16) -> Result<(), String>{
-    let all_stars = read_hyd_database()?; 
+    let all_stars = read_hyd_database(4.0)?; 
     let mut brightest_n_stars: Vec<Star> = vec![];
 
     for s in all_stars {
