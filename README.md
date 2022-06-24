@@ -41,7 +41,7 @@ A central star is picked. For it the $k \approx 10$ brightest stars in the FOV a
 
 ### Database
 
-The database is fixed for a given FOV of the camera and a given number of stars to detect $k$. The database is a .json file of $N$ entries. The key is the star id according to HYG db, value are two arrays of complex numbers, which are the DFT coeffs for $r(i)$ and $\delta(i)$. The filename should encode the number $k$, as well as FOV, in a meaningful way. In the main program, on startup the file is loaded or generated if it does not exist, and is then used in the matching process. 
+The database is fixed for a given FOV of the camera and a given number of stars to detect $k$. The database is a .csv file of $2N$ rows. Row $2i$ is the DFT coeffs for the function $r(j), j \in [1, k]$ for the star $i$, and row $2i+1$ is the coeffs for $\delta(j), j \in [1, k]$. Each row will have $2k$ comma separated values, coming in pairs of real, imaginary parts of the complex coefficient. The filename should encode the number $k$, as well as FOV, in a meaningful way. In the main program, on startup the file is loaded or generated if it does not exist, and is then used in the matching process. 
 
 ## Meteor detection
 
