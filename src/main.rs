@@ -1,3 +1,4 @@
+mod take_picture;
 mod parse_stars;
 mod coordinates;
 
