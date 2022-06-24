@@ -4,21 +4,12 @@ use std::fs::File;
 use std::io::{BufReader, prelude::*};
 use rustfft::{FftPlanner, num_complex::Complex};
 
-// extern crate serde_json;
-// extern crate serde;
-extern crate serde_derive;
-
-#[derive(Debug, serde_derive::Serialize, serde_derive::Deserialize)]
-pub struct DFT_coeffs {
-    r_coeffs: Vec<Complex<f64>>, 
-    delta_coeffs: Vec<Complex<f64>>
-}
 
 /// tries to read HYG db, if successful returns a vector of stars
 /// note: the indexes of the stars in the Star struct start at 1 
 /// m_lim - the limiting magnitude of the camera, and tha highest magnitude in the resulting vector
 pub fn read_hyd_database(m_lim: f64) -> Result<Vec<Star>, String> {
-    let file_path = "data/hyg_data.csv";
+    let file_path = "src/coordinates/data/hyg_data.csv";
     let file = match File::open(file_path) {
         Ok(f) => f, 
         Err(_) => return Err(String::from("could not open hyg database file"))
@@ -71,12 +62,16 @@ pub fn generate_db(m_lim: f64, k: u16, fov: f64) -> Result<(), String>{
     let fft = fft_planner.plan_fft_forward(k as usize);
 
     // create file to write to 
-    let db_location = format!("databases/k{}fov_deg{}.json", k, (fov*180.0/std::f64::consts::PI) as u16);
-    let db_file = match File::create(db_location) {
+    let db_location = format!("src/coordinates/databases/k{}fov_deg{}.csv", k, (fov*180.0/std::f64::consts::PI) as u16);
+    let mut db_file = match File::create(db_location) {
         Ok(f) => f, 
         Err(_) => { return Err(String::from("could not create file to write the dft coefficients to")); }
     };
-    
+    // write k and fov on the first two lines
+    if let Err(_) = db_file.write_all(format!("{}\n{}\n", k, fov).as_bytes()) {
+        return Err(String::from("could not write k and fov to db file for some reason"));
+    }
+    //compute and write dft coefficients to csv file
     for star in all_stars.iter() {
         let pattern = flower::FlowerPattern::generate(star.index, k, fov, &all_stars)?;
         // these will hold the DFT coefficients after the transformation
@@ -86,12 +81,21 @@ pub fn generate_db(m_lim: f64, k: u16, fov: f64) -> Result<(), String>{
         fft.process(&mut r_values);
         fft.process(&mut delta_values);
         // write DFT coefficients of flower patterns to .csv file
-        let coeff_struct = DFT_coeffs {
-            r_coeffs: r_values, 
-            delta_coeffs: delta_values
-        };
-        
-        
+        write_coeffs_to_file(&r_values, &mut db_file)?;
+        write_coeffs_to_file(&delta_values, &mut db_file)?;
+    }
+
+    Ok(())
+}
+
+fn write_coeffs_to_file(coeffs: &Vec<Complex<f64>>, file: &mut File) -> Result<(), String> {
+    let mut str_to_write = String::new();
+    for c in coeffs {
+        str_to_write.push_str(format!("{},{},", c.re, c.im).as_str());
+    }
+    str_to_write.push_str("\n");
+    if let Err(_) = file.write_all(str_to_write.as_bytes()) {
+        return Err(String::from("could not write DFT coeffs to file for some reason"));
     }
 
     Ok(())
