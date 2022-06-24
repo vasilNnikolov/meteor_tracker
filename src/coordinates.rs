@@ -52,4 +52,8 @@ mod tests {
             panic!();
         }
     }
+    #[test]
+    fn test_canopus_db_correctness() {
+        // read l
+    }
 }
