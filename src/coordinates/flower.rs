@@ -53,7 +53,7 @@ impl FlowerPattern {
     /// generates the flower pattern for a star
     /// index - the index of the central star according to the HYG db
     /// k - number of outer stars, used to limit low brightness stars in the petels
-    /// fov - RADIUS of the field of view of the camera, fov = min(w, h)/2 where w and h are the
+    /// fov - RADIUS of the field of view of the camera in radians, fov = min(w, h)/2 where w and h are the
     /// sizes of the camera field in radians
     /// stars - the list of all stars as generated from the HYG db
     pub fn generate(index: u16, k: u16, fov: f64, stars: &Vec<Star>) -> Result<FlowerPattern, String> {

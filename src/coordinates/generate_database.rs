@@ -1,6 +1,8 @@
 use crate::parse_stars::star::Star;
+use crate::coordinates::flower;
 use std::fs::File;
 use std::io::{BufReader, prelude::*};
+use rustfft::{FftPlanner, num_complex::Complex}
 
 /// tries to read HYG db, if successful returns a vector of stars
 /// note: the indexes of the stars in the Star struct start at 1 
@@ -38,7 +40,7 @@ pub fn read_hyd_database(m_lim: f64) -> Result<Vec<Star>, String> {
             break;
         }
         stars.push(Star::new(
-                ra*15.0*std::f64::consts::PI/180.0, 
+                ra*15.0*std::f64::consts::PI/180.0, // ra in the database is in hours
                 dec*std::f64::consts::PI/180.0, 
                 brightness, 
                 index as u16));
@@ -49,20 +51,29 @@ pub fn read_hyd_database(m_lim: f64) -> Result<Vec<Star>, String> {
 /// Generates a file of DFT coefficients for flower patterns. 
 /// m_lim - the limiting magnitude of the camera
 /// k - the number of outer stars in the flower pattern, approx 10, maybe more
+/// fov - the radius of the field of view of the camera, in radians
 /// It creates a file with N entries, N being the number of stars brighter than m_lim, and for each one stores the DFT coefficients
 /// of r(i) - distance between the central star and star number i of the petels, and delta(i) - angle between the petel i and (i + 1)
-pub fn generate_db(m_lim: f64, k: u16) -> Result<(), String>{
-    let all_stars = read_hyd_database(4.0)?; 
-    let mut brightest_n_stars: Vec<Star> = vec![];
+pub fn generate_db(m_lim: f64, k: u16, fov: f64) -> Result<(), String>{
+    let all_stars = read_hyd_database(m_lim)?; 
 
-    for s in all_stars {
-        if s.brightness <= m_lim {
-            brightest_n_stars.push(s);
-            println!("{:?}", s);
-        } else { break; }
+    let mut flower_patterns: Vec<flower::FlowerPattern>;
+    let mut r_dft_coefficients: Vec<[f64; k]>;
+    let mut delta_dft_coefficients: Vec<[f64; k]>;
+    for star in all_stars.iter() {
+        let pattern = flower::FlowerPattern::generate(star.index, k, fov, &all_stars)?;
+        flower_patterns.push(pattern);
+
+        let r_values: Vec<Complex<f64>> = pattern.r.iter().map(|&value_f| Complex::new(value_f, 0)).collect()
+        let delta_values: Vec<Complex<f64>> = pattern.delta.iter().map(|&value_f| Complex::new(value_f, 0)).collect()
+
+
     }
-    // TODO for each star generate the flower pattern, generate their DFTs and write them to
-    // database
+    // generate DFT coefficients of r(i) and delta(i) functions, i in [1..k]
+     
+
+    // write DFT coefficients of flower patterns to .csv file
+
 
     Ok(())
 }
