@@ -45,5 +45,11 @@ mod tests {
             println!("angle between star {} and {}: {}", i, (i + 1)%n, canopus_pattern.delta[i]*57.295);
         }
     }
-
+    #[test]
+    fn test_db_generation() {
+        if let Err(s) = generate_database::generate_db(4.0, 5, 0.52) {
+            println!("{}", s);
+            panic!();
+        }
+    }
 }
