@@ -1,5 +1,15 @@
 pub mod generate_database;
 pub mod flower;
+use crate::parse_stars::star;
+use generate_database;
+/// gets the vector of captured stars and a dft database which is pre-calculated at the beginning
+/// of the observations, and tries to compute the rotation matrix of the camera
+/// the return matrix R is such that 
+/// R*x_camera = x_real, where x_camera is the radius-vector of a point in the camera coordinate
+/// system and x_real is the position of the same point in the geocentric coordinate system
+pub fn get_rotation_matrix(captured_stars: Vec<star::Star>, dft_database: generate_database::DFT_database) -> Result<nalgebra::Matrix3<f64>, String> {
+    Err(String::from("get_rotation_matrix not unimplemented!"))
+}
 
 #[cfg(test)]
 mod tests {

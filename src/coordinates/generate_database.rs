@@ -3,9 +3,19 @@ use crate::coordinates::flower;
 use std::fs::File;
 use std::io::{BufReader, prelude::*};
 use rustfft::{FftPlanner, num_complex::Complex};
+
 pub struct DFT_coefficients {
     pub r_coeffs: Vec<Complex<f64>>, 
     pub delta_coeffs: Vec<Complex<f64>>
+}
+
+/// a struct which will hold the database of dft coefficients for all stars brighter than m_lim
+pub struct DFT_database {
+    pub k: u16, 
+    pub fov: f64, 
+    pub r_dft_coefficients: Vec<Complex<f64>>, 
+    pub delta_dft_coefficients: Vec<Complex<f64>>, 
+    pub m_lim: f64
 }
 
 /// tries to read HYG db, if successful returns a vector of stars
