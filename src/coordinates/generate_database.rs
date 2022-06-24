@@ -3,7 +3,10 @@ use crate::coordinates::flower;
 use std::fs::File;
 use std::io::{BufReader, prelude::*};
 use rustfft::{FftPlanner, num_complex::Complex};
-
+pub struct DFT_coefficients {
+    pub r_coeffs: Vec<Complex<f64>>, 
+    pub delta_coeffs: Vec<Complex<f64>>
+}
 
 /// tries to read HYG db, if successful returns a vector of stars
 /// note: the indexes of the stars in the Star struct start at 1 
@@ -67,19 +70,24 @@ pub fn generate_db(m_lim: f64, k: u16, fov: f64) -> Result<(), String>{
         Ok(f) => f, 
         Err(_) => { return Err(String::from("could not create file to write the dft coefficients to")); }
     };
+
     // write k and fov on the first two lines
     if let Err(_) = db_file.write_all(format!("{}\n{}\n", k, fov).as_bytes()) {
         return Err(String::from("could not write k and fov to db file for some reason"));
     }
+
     //compute and write dft coefficients to csv file
     for star in all_stars.iter() {
         let pattern = flower::FlowerPattern::generate(star.index, k, fov, &all_stars)?;
+
         // these will hold the DFT coefficients after the transformation
         let mut r_values: Vec<Complex<f64>> = pattern.r.iter().map(|&value_f| Complex::new(value_f, 0.0)).collect();
         let mut delta_values: Vec<Complex<f64>> = pattern.delta.iter().map(|&value_f| Complex::new(value_f, 0.0)).collect();
+
         // generate DFT coefficients of r(i) and delta(i) functions, i in [1..k]
         fft.process(&mut r_values);
         fft.process(&mut delta_values);
+
         // write DFT coefficients of flower patterns to .csv file
         write_coeffs_to_file(&r_values, &mut db_file)?;
         write_coeffs_to_file(&delta_values, &mut db_file)?;
@@ -100,3 +108,13 @@ fn write_coeffs_to_file(coeffs: &Vec<Complex<f64>>, file: &mut File) -> Result<(
 
     Ok(())
 }
+
+/// tries to find and read a DFT database file for given number of petels and fov
+/// k - number of outer stars for the flower pattern
+/// fov - radius of the fov in radians
+/// returns Err(String) if it could not read the file
+/// if it does not find a file with the 
+pub fn read_dft_database(k: u16, fov: f64) -> Result<Vec<DFT_coefficients>, String> {
+
+}
+
