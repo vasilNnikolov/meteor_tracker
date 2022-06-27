@@ -55,7 +55,8 @@ impl FlowerPattern {
     /// k - number of outer stars, used to limit low brightness stars in the petels
     /// fov - RADIUS of the field of view of the camera in radians, fov = min(w, h)/2 where w and h are the
     /// sizes of the camera field in radians
-    /// stars - the list of all stars as generated from the HYG db
+    /// stars - the list of all stars as generated from the HYG db, or the list of all observed
+    /// stars if the function is used on observational data
     pub fn generate(index: u16, k: u16, fov: f64, stars: &Vec<Star>) -> Result<FlowerPattern, String> {
         let mut outer_stars: Vec<Star> = vec![];
         let mut radius: Vec<f64> = vec![];
