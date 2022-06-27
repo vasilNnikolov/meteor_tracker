@@ -1,7 +1,6 @@
 pub mod generate_database;
 pub mod flower;
 use crate::parse_stars::star;
-use generate_database;
 /// gets the vector of captured stars and a dft database which is pre-calculated at the beginning
 /// of the observations, and tries to compute the rotation matrix of the camera
 /// the return matrix R is such that 
@@ -61,9 +60,5 @@ mod tests {
             println!("{}", s);
             panic!();
         }
-    }
-    #[test]
-    fn test_canopus_db_correctness() {
-        // read l
     }
 }
