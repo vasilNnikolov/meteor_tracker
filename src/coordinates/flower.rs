@@ -26,6 +26,7 @@ pub fn angle_of_outer_petel(central_star: &Star, outer_star: &Star) -> f64 {
     let z_prime = x_prime.cross(&y_prime);
 
     let R = Matrix3::from_columns(&[x_prime, y_prime, z_prime]);
+    // TODO work out the inverse by hand and hard-code it, for slightly better code speed 
     let R_inv = R.try_inverse().unwrap();
 
     let petel_new_coords = R_inv*outer_star.coords;
