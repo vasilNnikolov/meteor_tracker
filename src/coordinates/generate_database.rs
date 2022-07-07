@@ -57,11 +57,11 @@ pub fn read_hyd_database(m_lim: f64) -> Result<Vec<Star>, String> {
     Ok(stars)
 }
 
-/// Generates a file of DFT coefficients for flower patterns. 
+/// Generates a tuple of DFT_database struct and a vector of the flower patterns(for convenience)
 /// m_lim - the limiting magnitude of the camera
 /// k - the number of outer stars in the flower pattern, approx 10, maybe more
 /// fov - the radius of the field of view of the camera, in radians
-pub fn generate_db(m_lim: f64, k: u16, fov: f64) -> Result<DFT_database, String>{
+pub fn generate_db(m_lim: f64, k: u16, fov: f64) -> Result<(DFT_database, Vec<flower::FlowerPattern>), String>{
     let all_stars = read_hyd_database(m_lim)?; 
 
     let mut fft_planner = FftPlanner::new();
@@ -70,9 +70,11 @@ pub fn generate_db(m_lim: f64, k: u16, fov: f64) -> Result<DFT_database, String>
     let mut r_dft_coefficients: Vec<Vec<Complex<f64>>> = vec![];
     let mut delta_dft_coefficients: Vec<Vec<Complex<f64>>> = vec![];
 
+    let mut flower_patterns: Vec<flower::FlowerPattern> = vec![];
     // compute dft coefficients
     for star in all_stars.iter() {
         let pattern = flower::FlowerPattern::generate(star.index, k, fov, &all_stars)?;
+        flower_patterns.push(pattern);
 
         // these will hold the DFT coefficients after the transformation
         let mut r_values: Vec<Complex<f64>> = pattern.r.iter().map(|&value_f| Complex::new(value_f, 0.0)).collect();
@@ -86,12 +88,12 @@ pub fn generate_db(m_lim: f64, k: u16, fov: f64) -> Result<DFT_database, String>
         delta_dft_coefficients.push(delta_values);
     }
 
-    Ok(DFT_database {
+    Ok((DFT_database {
         k, 
         fov, 
         r_dft_coefficients, 
         delta_dft_coefficients, 
         m_lim
-    })
+    }, flower_patterns))
 }
 
