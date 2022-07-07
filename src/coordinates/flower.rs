@@ -3,9 +3,8 @@ use crate::parse_stars::star;
 
 use nalgebra::{Vector3, Matrix3};
 pub struct FlowerPattern {
-    /// the index of the center star, according to the hyg database
-    /// indeces start at 1, and bigger index means less bright star
-    pub center_star_index: u16, 
+    /// the central star struct
+    pub central_star: Star,
     /// the list of top K outer stars by brightness
     pub outer_stars: Vec<Star>, 
     /// the list of the distances between the central star and each of the outer stars, in radians
@@ -25,11 +24,11 @@ pub fn angle_of_outer_petel(central_star: &Star, outer_star: &Star) -> f64 {
     let x_prime = y_prime.cross(&Vector3::new(0.0, 0.0, 1.0));
     let z_prime = x_prime.cross(&y_prime);
 
-    let R = Matrix3::from_columns(&[x_prime, y_prime, z_prime]);
-    // TODO work out the inverse by hand and hard-code it, for slightly better code speed 
-    let R_inv = R.try_inverse().unwrap();
+    let r = Matrix3::from_columns(&[x_prime, y_prime, z_prime]);
+    // todo work out the inverse by hand and hard-code it, for slightly better code speed 
+    let r_inv = r.try_inverse().unwrap();
 
-    let petel_new_coords = R_inv*outer_star.coords;
+    let petel_new_coords = r_inv*outer_star.coords;
     let petel_angle = petel_new_coords[(2, 0)].atan2(petel_new_coords[(0, 0)]);
 
     // return angle in range [0, 2pi)
@@ -97,12 +96,39 @@ impl FlowerPattern {
         }
 
         Ok(FlowerPattern {
-            center_star_index: index, 
+            central_star: *central_star, 
             outer_stars, 
             r: radius, 
             delta, 
             fov
         })
+    }
+
+    /// returns the angle between the petel of index petel_index in the vector of stars, and the x
+    /// axis of the Sky coordinate system 
+    /// petel_index - between 0 and k
+    /// angle returned is between 0 and 2 pi
+    pub fn angle_of_petel(&self, petel_index: u16) -> Result<f64, String> {
+        if petel_index >= self.outer_stars.len() as u16 {
+            return Err(String::from("petel_index is larger than k, the number of petels in the flower pattern"));
+        }
+        let y_prime = self.central_star.coords;
+        let x_prime = y_prime.cross(&Vector3::new(0.0, 0.0, 1.0));
+        let z_prime = x_prime.cross(&y_prime);
+
+        let r = Matrix3::from_columns(&[x_prime, y_prime, z_prime]);
+        // todo work out the inverse by hand and hard-code it, for slightly better code speed 
+        let r_inv = r.try_inverse().unwrap();
+
+        let petel_new_coords = r_inv*self.outer_stars[petel_index as usize].coords;
+        let petel_angle = petel_new_coords[(2, 0)].atan2(petel_new_coords[(0, 0)]);
+
+        // return angle in range [0, 2pi)
+        if petel_angle < 0.0 {
+            return Ok(petel_angle + 2.0*std::f64::consts::PI);
+        } else {
+            return Ok(petel_angle);
+        }
     }
 }
 
