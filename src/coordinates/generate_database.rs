@@ -74,11 +74,11 @@ pub fn generate_db(m_lim: f64, k: u16, fov: f64) -> Result<(DFT_database, Vec<fl
     // compute dft coefficients
     for star in all_stars.iter() {
         let pattern = flower::FlowerPattern::generate(star.index, k, fov, &all_stars)?;
-        flower_patterns.push(pattern);
 
         // these will hold the DFT coefficients after the transformation
         let mut r_values: Vec<Complex<f64>> = pattern.r.iter().map(|&value_f| Complex::new(value_f, 0.0)).collect();
         let mut delta_values: Vec<Complex<f64>> = pattern.delta.iter().map(|&value_f| Complex::new(value_f, 0.0)).collect();
+        flower_patterns.push(pattern);
 
         // generate DFT coefficients of r(i) and delta(i) functions, i in [1..k]
         fft.process(&mut r_values);
