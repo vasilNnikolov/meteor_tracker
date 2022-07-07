@@ -44,7 +44,7 @@ pub fn get_rotation_matrix(captured_stars: &Vec<star::Star>, dft_database: &gene
         R_deltas.push(R_delta);
     } 
 
-    let (central_star_true_index, tau) = match match_catalogue_star_to_central(R_rs, R_deltas) {
+    let (central_star_true_index, tau) = match match_catalogue_star_to_central(&mut R_rs, &mut R_deltas) {
         Ok((index, t)) => (index, t), 
         Err(s) => {
             // TODO handle error of no matched star better
@@ -56,7 +56,7 @@ pub fn get_rotation_matrix(captured_stars: &Vec<star::Star>, dft_database: &gene
     let mut average_angle_offset = 0.0;
     let catalogue_flower_pattern = flower_patterns.get(central_star_true_index as usize).unwrap(); 
     for petel_index in 0..k as i32 {
-        let corresponding_index_of_observed_star = ((petel_index - tau) % k as i32 + k as i32) % k as i32;
+        let corresponding_index_of_observed_star = ((petel_index - tau as i32) % k as i32 + k as i32) % k as i32;
         average_angle_offset += observed_pattern.angle_of_petel(petel_index as u16).unwrap() - catalogue_flower_pattern.angle_of_petel(corresponding_index_of_observed_star as u16).unwrap();
     }
     average_angle_offset /= k as f64;
@@ -99,9 +99,33 @@ fn generate_flower_pattern_from_observation(captured_stars: &Vec<star::Star>, k:
 /// if successful, returns Ok(index of the best matching star in the catalogue)
 /// if not, it could not match sufficiently well any star on the catalogue to the central star,
 /// possibly indicating a false central star, or many false stars as petels
-fn match_catalogue_star_to_central(R_rs: Vec<Vec<Complex<f64>>>, R_deltas: Vec<Vec<Complex<f64>>>) -> Result<(u16, i32), String> {
-    // TODO implement!
-    Err(String::from("match_catalogue_star_to_central not unimplemented!"))
+fn match_catalogue_star_to_central(R_rs: &mut Vec<Vec<Complex<f64>>>, R_deltas: &mut Vec<Vec<Complex<f64>>>) -> Result<(u16, u16), String> {
+    let n = R_rs.len();
+    let mut planner = FftPlanner::new();
+    let k = R_rs[0].len();
+    let inverse_fft = planner.plan_fft_inverse(k);
+
+    // the inverse fft should have a value equal to K at some i, and close to 0 everywhere else
+    // currently we only look at distance data, not angle data
+    // TODO do the same process for the delta data, and compare the results
+    let mut tau_r: u16 = 0;
+    let mut best_highest_r: f64 = 0.0;
+    let mut best_matching_star_index_r: u16 = 0;
+
+    for index in 0..n {
+        inverse_fft.process(&mut R_rs[index]);
+        let (max_r_index, max_r_value) = R_rs[index].iter().enumerate()
+            .map(|(i, &c)| (i, c.norm()))
+            .max_by(|&(_, f1), &(_, f2)| f1.partial_cmp(&f2).unwrap_or(std::cmp::Ordering::Equal)).unwrap();
+
+        if max_r_value > best_highest_r {
+            best_highest_r = max_r_value;
+            tau_r = max_r_index as u16;
+            best_matching_star_index_r = index as u16;
+        }
+    }
+
+    Ok((best_matching_star_index_r, (k as u16 - tau_r)%k as u16))
 }
 
 #[cfg(test)]
