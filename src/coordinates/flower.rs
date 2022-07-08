@@ -21,7 +21,8 @@ pub struct FlowerPattern {
 /// It is used to order the stars around the central star when generating the flower pattern
 pub fn angle_of_outer_petel(central_star: &Star, outer_star: &Star) -> f64 {
     let y_prime = central_star.coords;
-    let x_prime = y_prime.cross(&Vector3::new(0.0, 0.0, 1.0));
+    let mut x_prime = y_prime.cross(&Vector3::new(0.0, 0.0, 1.0));
+    x_prime = x_prime/x_prime.norm();
     let z_prime = x_prime.cross(&y_prime);
 
     let r = Matrix3::from_columns(&[x_prime, y_prime, z_prime]);
@@ -113,7 +114,9 @@ impl FlowerPattern {
             return Err(String::from("petel_index is larger than k, the number of petels in the flower pattern"));
         }
         let y_prime = self.central_star.coords;
-        let x_prime = y_prime.cross(&Vector3::new(0.0, 0.0, 1.0));
+        let mut x_prime = y_prime.cross(&Vector3::new(0.0, 0.0, 1.0));
+        x_prime = x_prime/x_prime.norm();
+
         let z_prime = x_prime.cross(&y_prime);
 
         let r = Matrix3::from_columns(&[x_prime, y_prime, z_prime]);
