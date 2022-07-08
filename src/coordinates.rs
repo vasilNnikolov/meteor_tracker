@@ -3,6 +3,7 @@ pub mod flower;
 use crate::parse_stars::star;
 use crate::coordinates::flower::FlowerPattern;
 use rustfft::{FftPlanner, num_complex::Complex};
+use nalgebra::{Vector3, Matrix3};
 
 /// gets the vector of captured stars and a dft database which is pre-calculated at the beginning
 /// of the observations, and tries to compute the rotation matrix of the camera
@@ -60,10 +61,36 @@ pub fn get_rotation_matrix(captured_stars: &Vec<star::Star>, dft_database: &gene
         average_angle_offset += observed_pattern.angle_of_petel(petel_index as u16).unwrap() - catalogue_flower_pattern.angle_of_petel(corresponding_index_of_observed_star as u16).unwrap();
     }
     average_angle_offset /= k as f64;
-    
-    // TODO generate matrix from observed star and its corresponding catalogue star and the angle
-    // of rotation of the camera
-    Err(String::from("get_rotation_matrix not unimplemented!"))
+
+    // in geocentric coordinate system
+    let central_star_coords = flower_patterns.get(central_star_true_index as usize).unwrap().central_star.coords; 
+    // matrix magic begins, please work
+    // build T_rc
+    let y_rc = central_star_coords; 
+    let mut x_rc = y_rc.cross(&Vector3::new(0.0, 0.0, 1.0));
+    x_rc = x_rc/x_rc.norm();
+    let z_rc= x_rc.cross(&y_rc);
+
+    let T_rc = Matrix3::from_columns(&[x_rc, y_rc, z_rc]); 
+
+    // build Rot_y(-average_angle_offset)
+    let x_roty = Vector3::new(average_angle_offset.cos(), 0.0, -(average_angle_offset.sin()));
+    let y_roty = Vector3::new(0.0, 1.0, 0.0);
+    let z_roty = x_roty.cross(&y_roty);
+
+    let Rot_y = Matrix3::from_columns(&[x_roty, y_roty, z_roty/z_roty.norm()]); 
+
+    // build T_rc' inverse
+    let y_rc_prime = observed_pattern.central_star.coords; 
+    let mut x_rc_prime = y_rc_prime.cross(&Vector3::new(0.0, 0.0, 1.0));
+    x_rc_prime = x_rc_prime/x_rc_prime.norm();
+    let z_rc_prime= x_rc_prime.cross(&y_rc_prime);
+
+    let T_rc_prime_inverse = Matrix3::from_columns(&[x_rc_prime, y_rc_prime, z_rc_prime]).try_inverse().unwrap(); 
+
+    let R = T_rc*Rot_y*T_rc_prime_inverse;
+
+    Ok(R)
 }
 
 /// generates a flower pattern from the observed stars, to be used for matching against the DFT
@@ -75,7 +102,7 @@ fn generate_flower_pattern_from_observation(captured_stars: &Vec<star::Star>, k:
     let mut k_plus_one_brightest: Vec<star::Star> = captured_stars.clone();
     // sort by lowest magnitude first
     k_plus_one_brightest.sort_by(|&a, &b| {
-        b.brightness.partial_cmp(&a.brightness).unwrap()
+        a.brightness.partial_cmp(&b.brightness).unwrap()
     });
     if k + 1 > k_plus_one_brightest.len() as u16 {
         return Err(format!("there are not enough stars in the image to generate a flower pattern of size k={}", k));
@@ -85,8 +112,9 @@ fn generate_flower_pattern_from_observation(captured_stars: &Vec<star::Star>, k:
     k_plus_one_brightest.sort_by(|&a, &b| {
         let a_dist_squared = a.coords.x.powi(2) + a.coords.z.powi(2);
         let b_dist_squared = b.coords.x.powi(2) + b.coords.z.powi(2);
-        b_dist_squared.partial_cmp(&a_dist_squared).unwrap()
+        a_dist_squared.partial_cmp(&b_dist_squared).unwrap()
     });
+    println!("k_plus_one_brightest: {}", k_plus_one_brightest.len());
     // index is 1 and not 0 because of the implementation of generate, made for index according to
     // the HYG db
     Ok(FlowerPattern::generate(1, k, fov, &k_plus_one_brightest)?)
@@ -99,6 +127,7 @@ fn generate_flower_pattern_from_observation(captured_stars: &Vec<star::Star>, k:
 /// if successful, returns Ok(index of the best matching star in the catalogue)
 /// if not, it could not match sufficiently well any star on the catalogue to the central star,
 /// possibly indicating a false central star, or many false stars as petels
+/// TODO make a better choice function
 fn match_catalogue_star_to_central(R_rs: &mut Vec<Vec<Complex<f64>>>, R_deltas: &mut Vec<Vec<Complex<f64>>>) -> Result<(u16, u16), String> {
     let n = R_rs.len();
     let mut planner = FftPlanner::new();
@@ -178,5 +207,36 @@ mod tests {
             println!("{}", s);
             panic!();
         }
+    }
+    #[test]
+    fn test_main_fun_of_module(){
+        // camera is facing in the direction R_y
+        let R_x = Vector3::new(0.9, 0.0, 0.43588);
+        let mut R_y = R_x.cross(&Vector3::new(0.0, 1.0, 0.0));
+        R_y = R_y / R_y.norm();
+        let R_z = R_x.cross(&R_y);
+        let R = Matrix3::from_columns(&[R_x, R_y, R_z]);
+
+        // generate list of captured stars
+        let R_inv = R.try_inverse().unwrap();
+        let fov = 0.52;
+        let k = 5;
+        let (DFT_db, flower_patterns) = generate_database::generate_db(4.0, k, fov).unwrap();
+        let all_stars: Vec<star::Star> = flower_patterns.iter().map(|fp| fp.central_star).collect();
+
+        let mut captured_stars: Vec<star::Star> = all_stars
+            .iter()
+            .filter(|&s| s.coords.dot(&R_y) > fov.cos())
+            .map(|&s| star::Star {
+                index: 6969, 
+                coords: R_inv*s.coords,
+                brightness: s.brightness
+            })
+            .collect();
+        println!("captured {} stars in fov", captured_stars.len());
+
+        let experiment_R = get_rotation_matrix(&captured_stars, &DFT_db, &flower_patterns).unwrap();
+        println!("exp: {:?}", experiment_R);
+        println!("real: {:?}", R);
     }
 }

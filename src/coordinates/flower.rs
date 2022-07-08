@@ -71,9 +71,10 @@ impl FlowerPattern {
         // dot product of the coordinates should be larger than cos(FOV) in order for the star to
         // be in the FOV
         let stars_in_fov: Vec<&Star> = stars.iter().filter(|&s| {
-            let cos_angle = star::cos_angle_between_stars(central_star, s);
+            // let cos_angle = star::cos_angle_between_stars(central_star, s);
+            let cos_angle = central_star.coords.dot(&s.coords);
             // the second portion is so it does not include the central star itself
-            cos_angle > fov.cos() && cos_angle < 0.9999
+            cos_angle > fov.cos() && cos_angle < 0.999999
         }).collect();
 
         // take first k brightest stars
