@@ -1,4 +1,5 @@
 use crate::parse_stars::star::Star;
+use crate::parse_stars::star;
 use crate::coordinates::flower;
 use std::fs::File;
 use std::io::{BufReader, prelude::*};
@@ -16,7 +17,8 @@ pub struct DFT_database {
 /// tries to read HYG db, if successful returns a vector of stars
 /// note: the indexes of the stars in the Star struct start at 1 
 /// m_lim - the limiting magnitude of the camera, and tha highest magnitude in the resulting vector
-pub fn read_hyd_database(m_lim: f64) -> Result<Vec<Star>, String> {
+/// min_angle - if stars are closer than min_angle from one another, they are merged into one star
+pub fn read_hyd_database(m_lim: f64, min_angle: f64) -> Result<Vec<Star>, String> {
     let file_path = "src/coordinates/data/hyg_data.csv";
     let file = match File::open(file_path) {
         Ok(f) => f, 
@@ -54,15 +56,36 @@ pub fn read_hyd_database(m_lim: f64) -> Result<Vec<Star>, String> {
                 brightness, 
                 index as u16));
     }
-    Ok(stars)
+    // merge stars close to min_angle
+    let n = stars.len();
+    let mut merged_stars: Vec<Star> = vec![];
+    let mut has_already_been_merged: Vec<bool> = vec![false; n];
+    let mut index_num = 1;
+    for i in 0..n {
+        if has_already_been_merged[i] {
+            continue;
+        }
+        let mut total_intensity = 0.0;
+        for j in 0..n {
+            if !has_already_been_merged[j] && star::cos_angle_between_stars(&stars[i], &stars[j]) > min_angle.cos() {
+                total_intensity += 10f64.powf(-0.4*stars[j].brightness); 
+                has_already_been_merged[j] = true;
+            }
+        }
+        let (ra, dec) = stars[i].get_ra_dec();
+        merged_stars.push(Star::new(ra, dec, -2.5*total_intensity.log10(), index_num));
+        index_num += 1;
+    }
+    Ok(merged_stars)
 }
+
 
 /// Generates a tuple of DFT_database struct and a vector of the flower patterns(for convenience)
 /// m_lim - the limiting magnitude of the camera
 /// k - the number of outer stars in the flower pattern, approx 10, maybe more
 /// fov - the radius of the field of view of the camera, in radians
 pub fn generate_db(m_lim: f64, k: u16, fov: f64) -> Result<(DFT_database, Vec<flower::FlowerPattern>), String>{
-    let all_stars = read_hyd_database(m_lim)?; 
+    let all_stars = read_hyd_database(m_lim, 0.0017)?; // min angle is about 0.1 degrees
 
     let mut fft_planner = FftPlanner::new();
     let fft = fft_planner.plan_fft_forward(k as usize);
