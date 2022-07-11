@@ -11,9 +11,12 @@ use nalgebra::{Vector3, Matrix3};
 /// R*x_camera = x_real, where x_camera is the radius-vector of a point in the camera coordinate
 /// system and x_real is the position of the same point in the geocentric coordinate system
 pub fn get_rotation_matrix(captured_stars: &Vec<star::Star>, dft_database: &generate_database::DFT_database, flower_patterns: &Vec<FlowerPattern>) -> Result<nalgebra::Matrix3<f64>, String> {
+    // get size of the catalogue
+    let n = dft_database.r_dft_coefficients.len();
     let k = dft_database.r_dft_coefficients[0].len();
     let fov = dft_database.fov;
     let observed_pattern = generate_flower_pattern_from_observation(captured_stars, k as u16, fov)?;
+    print_flower_pattern(&observed_pattern);
 
     let mut fft_planner = FftPlanner::new();
     let fft = fft_planner.plan_fft_forward(k as usize);
@@ -28,8 +31,6 @@ pub fn get_rotation_matrix(captured_stars: &Vec<star::Star>, dft_database: &gene
     let mut R_rs: Vec<Vec<Complex<f64>>> = vec![];
     let mut R_deltas: Vec<Vec<Complex<f64>>> = vec![];
 
-    // get size of the catalogue
-    let n = dft_database.r_dft_coefficients.len();
     for star_index in 0..n {
         // the R vectors of complex numbers as in the wikipedia page for phase correlation
         let mut R_r: Vec<Complex<f64>> = vec![];
@@ -52,6 +53,7 @@ pub fn get_rotation_matrix(captured_stars: &Vec<star::Star>, dft_database: &gene
             return Err(s);
         }
     };
+    println!("tau: {}", tau);
 
     // angle of petel minus angle of corresponding petel in the catalogue flower pattern
     let mut average_angle_offset = 0.0;
@@ -64,6 +66,10 @@ pub fn get_rotation_matrix(captured_stars: &Vec<star::Star>, dft_database: &gene
 
     // in geocentric coordinate system
     let central_star_coords = flower_patterns.get(central_star_true_index as usize).unwrap().central_star.coords; 
+    println!("central star coords(geo): {}", central_star_coords);
+    println!("angle offset: {}", average_angle_offset);
+
+
     // matrix magic begins, please work
     // build T_rc
     let y_rc = central_star_coords; 
@@ -89,6 +95,7 @@ pub fn get_rotation_matrix(captured_stars: &Vec<star::Star>, dft_database: &gene
     let T_rc_prime_inverse = Matrix3::from_columns(&[x_rc_prime, y_rc_prime, z_rc_prime]).try_inverse().unwrap(); 
 
     let R = T_rc*Rot_y*T_rc_prime_inverse;
+    // let R = T_rc*T_rc_prime_inverse;
 
     Ok(R)
 }
@@ -107,7 +114,7 @@ fn generate_flower_pattern_from_observation(captured_stars: &Vec<star::Star>, k:
     if k + 1 > k_plus_one_brightest.len() as u16 {
         return Err(format!("there are not enough stars in the image to generate a flower pattern of size k={}", k));
     }
-    k_plus_one_brightest = k_plus_one_brightest.into_iter().take((k + 1) as usize).collect();
+    // k_plus_one_brightest = k_plus_one_brightest.into_iter().take((k + 1) as usize).collect();
     // sort them by distance to the center of the image, smallest distance first
     k_plus_one_brightest.sort_by(|&a, &b| {
         let a_dist_squared = a.coords.x.powi(2) + a.coords.z.powi(2);
@@ -155,14 +162,35 @@ fn match_catalogue_star_to_central(R_rs: &mut Vec<Vec<Complex<f64>>>, R_deltas: 
     }
 
     Ok((best_matching_star_index_r, (k as u16 - tau_r)%k as u16))
+    // Ok((best_matching_star_index_r, tau_r%k as u16))
 }
 
+fn print_flower_pattern(fp: &FlowerPattern) {
+    let n = fp.outer_stars.len(); 
+    let (ra, dec) = fp.central_star.get_ra_dec();
+    println!("central star ra, dec: {:.2} h {:.2} deg, magnitude {:.2}", 
+        ra*57.3/15.0, 
+        dec*57.3, 
+        fp.central_star.brightness);
+    for i in 0..n {
+        let (ra, dec) = fp.outer_stars[i].get_ra_dec();
+        println!("ra, dec: {:.2} h {:.2} deg, magnitude {:.2}, distance {:.2}, angle {:.2}", 
+            ra*57.3/15.0, 
+            dec*57.3, 
+            fp.outer_stars[i].brightness,
+            fp.r[i]*57.295, 
+            flower::angle_of_outer_petel(&fp.central_star, &fp.outer_stars[i])*57.295);
+        println!("angle between star {} and {}: {}", i, (i + 1)%n, fp.delta[i]*57.295);
+    }
+}
 #[cfg(test)]
 mod tests {
     use super::*;
+    extern crate rand;
+    use rand::Rng;
     #[test]
     fn test_file_read() {
-        let all_stars = generate_database::read_hyd_database(4.0).unwrap();
+        let all_stars = generate_database::read_hyd_database(4.0, 0.0017).unwrap();
         for i in 0..5 {
             println!("{:?}", all_stars[i]);
         }
@@ -171,7 +199,7 @@ mod tests {
     }
     #[test]
     fn test_sirius_pattern() {
-        let all_stars = generate_database::read_hyd_database(4.0).unwrap();
+        let all_stars = generate_database::read_hyd_database(4.0, 0.0017).unwrap();
         let sirius_pattern = FlowerPattern::generate(1, 5, 0.35, &all_stars).unwrap();
         let n = sirius_pattern.outer_stars.len(); 
         for i in 0..n {
@@ -187,7 +215,7 @@ mod tests {
     }
     #[test]
     fn test_canopus_pattern() {
-        let all_stars = generate_database::read_hyd_database(4.0).unwrap();
+        let all_stars = generate_database::read_hyd_database(4.0, 0.0017).unwrap();
         let canopus_pattern = FlowerPattern::generate(2, 5, 0.35, &all_stars).unwrap();
         let n = canopus_pattern.outer_stars.len(); 
         for i in 0..n {
@@ -208,23 +236,36 @@ mod tests {
             panic!();
         }
     }
+    fn generate_random_orthogonal_matrix() -> Matrix3<f64> {
+        let mut rng = rand::thread_rng();
+        let mut y = Vector3::new(rng.gen_range(-1.0..1.0), rng.gen_range(-1.0..1.0), rng.gen_range(-1.0..1.0));
+        y = y / y.norm();
+        let mut x = y.cross(&Vector3::new(0.0, 0.0, 1.0));
+        x = x / x.norm();
+        let z = x.cross(&y);
+        Matrix3::from_columns(&[x, y, z])
+        // let mut x = Vector3::new(rng.gen_range(-1.0..1.0), rng.gen_range(-1.0..1.0), rng.gen_range(-1.0..1.0));
+        // x = x / x.norm();
+        // let mut y = Vector3::new(0.0, rng.gen_range(-1.0..1.0), rng.gen_range(-1.0..1.0)).cross(&x);
+        // y = y / y.norm();
+        // let z = x.cross(&y);
+        // Matrix3::from_columns(&[x, y, z])
+    }
     #[test]
-    fn test_main_fun_of_module(){
+    fn test_main_fun_of_module() {
         // camera is facing in the direction R_y
-        let R_x = Vector3::new(0.9, 0.0, 0.43588);
-        let mut R_y = R_x.cross(&Vector3::new(0.0, 1.0, 0.0));
-        R_y = R_y / R_y.norm();
-        let R_z = R_x.cross(&R_y);
-        let R = Matrix3::from_columns(&[R_x, R_y, R_z]);
+        let R = generate_random_orthogonal_matrix();
 
+        // let R = Matrix3::<f64>::identity();
         // generate list of captured stars
         let R_inv = R.try_inverse().unwrap();
         let fov = 0.52;
-        let k = 5;
+        let k = 8;
         let (DFT_db, flower_patterns) = generate_database::generate_db(4.0, k, fov).unwrap();
         let all_stars: Vec<star::Star> = flower_patterns.iter().map(|fp| fp.central_star).collect();
 
-        let mut captured_stars: Vec<star::Star> = all_stars
+        let R_y = R.column(1);
+        let captured_stars: Vec<star::Star> = all_stars
             .iter()
             .filter(|&s| s.coords.dot(&R_y) > fov.cos())
             .map(|&s| star::Star {
@@ -238,5 +279,19 @@ mod tests {
         let experiment_R = get_rotation_matrix(&captured_stars, &DFT_db, &flower_patterns).unwrap();
         println!("exp: {:?}", experiment_R);
         println!("real: {:?}", R);
+    }
+    #[test]
+    fn min_distance_between_stars() {
+        let all_stars = generate_database::read_hyd_database(4.0, 0.0017).unwrap(); 
+        let mut max_cos_angle: f64 = -1.0;
+        for i in 0..all_stars.len() {
+            for j in 0..all_stars.len() {
+                let angle = star::cos_angle_between_stars(&all_stars[i], &all_stars[j]);
+                if max_cos_angle < angle && i != j {
+                    max_cos_angle = angle;
+                }
+            }
+        }
+        println!("max_cos_angle: {}", max_cos_angle);
     }
 }

@@ -70,23 +70,26 @@ impl FlowerPattern {
 
         // dot product of the coordinates should be larger than cos(FOV) in order for the star to
         // be in the FOV
-        let stars_in_fov: Vec<&Star> = stars.iter().filter(|&s| {
-            // let cos_angle = star::cos_angle_between_stars(central_star, s);
+        let mut stars_in_fov: Vec<&Star> = (*stars).iter().filter(|&s| {
             let cos_angle = central_star.coords.dot(&s.coords);
             // the second portion is so it does not include the central star itself
-            cos_angle > fov.cos() && cos_angle < 0.999999
+            cos_angle > fov.cos() && cos_angle < 1.0 
         }).collect();
 
+        // order the stars, lowest magnitude first
+        stars_in_fov.sort_by(|&s1, &s2| {
+            s1.brightness.partial_cmp(&(s2.brightness)).unwrap_or(std::cmp::Ordering::Equal)
+        });
         // take first k brightest stars
         if stars_in_fov.len() < k as usize {
-            return Err(String::from(format!("There are {} stars in the fov, more than k={}", stars_in_fov.len(), k)));
+            return Err(String::from(format!("There are {} stars in the fov, less than k={}", stars_in_fov.len(), k)));
         }
         let mut stars_in_fov: Vec<&Star> = stars_in_fov.into_iter().take(k as usize).collect();
         
         // order the stars by their angle relative to the x axis of the sky camera, in ascending
         // order
         stars_in_fov.sort_by(|&a, &b| {
-            angle_of_outer_petel(central_star, a).partial_cmp(&angle_of_outer_petel(central_star, b)).unwrap() 
+            angle_of_outer_petel(central_star, a).partial_cmp(&angle_of_outer_petel(central_star, b)).unwrap_or(std::cmp::Ordering::Equal)
         });
 
         for i in 0..k as usize {
