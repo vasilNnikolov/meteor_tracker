@@ -16,7 +16,6 @@ pub fn get_rotation_matrix(captured_stars: &Vec<star::Star>, dft_database: &gene
     let k = dft_database.r_dft_coefficients[0].len();
     let fov = dft_database.fov;
     let observed_pattern = generate_flower_pattern_from_observation(captured_stars, k as u16, fov)?;
-    print_flower_pattern(&observed_pattern);
 
     let mut fft_planner = FftPlanner::new();
     let fft = fft_planner.plan_fft_forward(k as usize);
@@ -53,22 +52,26 @@ pub fn get_rotation_matrix(captured_stars: &Vec<star::Star>, dft_database: &gene
             return Err(s);
         }
     };
-    println!("tau: {}", tau);
 
     // angle of petel minus angle of corresponding petel in the catalogue flower pattern
     let mut average_angle_offset = 0.0;
     let catalogue_flower_pattern = flower_patterns.get(central_star_true_index as usize).unwrap(); 
+     
     for petel_index in 0..k as i32 {
-        let corresponding_index_of_observed_star = ((petel_index - tau as i32) % k as i32 + k as i32) % k as i32;
-        average_angle_offset += observed_pattern.angle_of_petel(petel_index as u16).unwrap() - catalogue_flower_pattern.angle_of_petel(corresponding_index_of_observed_star as u16).unwrap();
+        let corresponding_index_of_observed_star = (petel_index - tau as i32 + k as i32) % k as i32;
+        let observed_angle = observed_pattern.angle_of_petel(petel_index as u16).unwrap();
+        let catalogue_angle = catalogue_flower_pattern.angle_of_petel(corresponding_index_of_observed_star as u16).unwrap();
+        let delta_angle = observed_angle - catalogue_angle;
+        if delta_angle < 0.0 {
+            average_angle_offset += delta_angle + 2.0*std::f64::consts::PI;
+        } else {
+            average_angle_offset += delta_angle;
+        }
     }
     average_angle_offset /= k as f64;
 
     // in geocentric coordinate system
     let central_star_coords = flower_patterns.get(central_star_true_index as usize).unwrap().central_star.coords; 
-    println!("central star coords(geo): {}", central_star_coords);
-    println!("angle offset: {}", average_angle_offset);
-
 
     // matrix magic begins, please work
     // build T_rc
@@ -84,7 +87,7 @@ pub fn get_rotation_matrix(captured_stars: &Vec<star::Star>, dft_database: &gene
     let y_roty = Vector3::new(0.0, 1.0, 0.0);
     let z_roty = x_roty.cross(&y_roty);
 
-    let Rot_y = Matrix3::from_columns(&[x_roty, y_roty, z_roty/z_roty.norm()]); 
+    let Rot_y = Matrix3::from_columns(&[x_roty, y_roty, z_roty]); 
 
     // build T_rc' inverse
     let y_rc_prime = observed_pattern.central_star.coords; 
@@ -95,7 +98,6 @@ pub fn get_rotation_matrix(captured_stars: &Vec<star::Star>, dft_database: &gene
     let T_rc_prime_inverse = Matrix3::from_columns(&[x_rc_prime, y_rc_prime, z_rc_prime]).try_inverse().unwrap(); 
 
     let R = T_rc*Rot_y*T_rc_prime_inverse;
-    // let R = T_rc*T_rc_prime_inverse;
 
     Ok(R)
 }
@@ -106,25 +108,19 @@ pub fn get_rotation_matrix(captured_stars: &Vec<star::Star>, dft_database: &gene
 /// currently it selects the (k + 1) brightest stars, picks the one closest to the center of the
 /// image as the central one, and the other k as petels
 fn generate_flower_pattern_from_observation(captured_stars: &Vec<star::Star>, k: u16, fov: f64) -> Result<FlowerPattern, String> {
-    let mut k_plus_one_brightest: Vec<star::Star> = captured_stars.clone();
-    // sort by lowest magnitude first
-    k_plus_one_brightest.sort_by(|&a, &b| {
-        a.brightness.partial_cmp(&b.brightness).unwrap()
-    });
-    if k + 1 > k_plus_one_brightest.len() as u16 {
+    if k + 1 > captured_stars.len() as u16 {
         return Err(format!("there are not enough stars in the image to generate a flower pattern of size k={}", k));
     }
-    // k_plus_one_brightest = k_plus_one_brightest.into_iter().take((k + 1) as usize).collect();
+    let mut stars_to_sort: Vec<star::Star> = (*captured_stars).clone();
     // sort them by distance to the center of the image, smallest distance first
-    k_plus_one_brightest.sort_by(|&a, &b| {
-        let a_dist_squared = a.coords.x.powi(2) + a.coords.z.powi(2);
-        let b_dist_squared = b.coords.x.powi(2) + b.coords.z.powi(2);
-        a_dist_squared.partial_cmp(&b_dist_squared).unwrap()
+    let center_of_image = Vector3::new(0.0, 1.0, 0.0);
+    stars_to_sort.sort_by(|&a, &b| {
+        b.coords.dot(&center_of_image).partial_cmp(&(a.coords.dot(&center_of_image))).unwrap()
     });
-    println!("k_plus_one_brightest: {}", k_plus_one_brightest.len());
+    println!("distance between center of image and central star of observation: {} rad", stars_to_sort[0].coords.dot(&center_of_image).acos());
     // index is 1 and not 0 because of the implementation of generate, made for index according to
     // the HYG db
-    Ok(FlowerPattern::generate(1, k, fov, &k_plus_one_brightest)?)
+    Ok(FlowerPattern::generate(1, k, fov, &stars_to_sort)?)
 }
 /// returns the index of the catalogue star which best matches the observed flower pattern, and the
 /// offset tau, for which r'(i) = r((i - tau) % k)
@@ -141,28 +137,41 @@ fn match_catalogue_star_to_central(R_rs: &mut Vec<Vec<Complex<f64>>>, R_deltas: 
     let k = R_rs[0].len();
     let inverse_fft = planner.plan_fft_inverse(k);
 
-    // the inverse fft should have a value equal to K at some i, and close to 0 everywhere else
-    // currently we only look at distance data, not angle data
-    // TODO do the same process for the delta data, and compare the results
-    let mut tau_r: u16 = 0;
-    let mut best_highest_r: f64 = 0.0;
-    let mut best_matching_star_index_r: u16 = 0;
+    struct BestMatch {
+        score: f64, 
+        central_star_index: u16, 
+        tau: u16
+    }
+    
+    fn get_score_tau(r: &Vec<Complex<f64>>) -> (f64, u16) {
+        let (max_r_index, max_r_value): (usize, f64) = r.iter().enumerate()
+            .map(|(i, c)| (i, c.norm()))
+            .max_by(|&(_, f1), &(_, f2)| f1.partial_cmp(&f2).unwrap()).unwrap();
 
-    for index in 0..n {
-        inverse_fft.process(&mut R_rs[index]);
-        let (max_r_index, max_r_value) = R_rs[index].iter().enumerate()
-            .map(|(i, &c)| (i, c.norm()))
-            .max_by(|&(_, f1), &(_, f2)| f1.partial_cmp(&f2).unwrap_or(std::cmp::Ordering::Equal)).unwrap();
-
-        if max_r_value > best_highest_r {
-            best_highest_r = max_r_value;
-            tau_r = max_r_index as u16;
-            best_matching_star_index_r = index as u16;
-        }
+        let k = r.len();
+        let residual_quadratic = r.iter().map(|&c| c.norm().powi(2)).sum::<f64>() - max_r_value.powi(2);
+        let score: f64 = 1.0 - (residual_quadratic/(k - 1) as f64).powf(0.5)/max_r_value;
+        (score, max_r_index as u16) 
     }
 
-    Ok((best_matching_star_index_r, (k as u16 - tau_r)%k as u16))
-    // Ok((best_matching_star_index_r, tau_r%k as u16))
+    let mut matches: Vec<BestMatch> = vec![];
+    for index in 0..n {
+        inverse_fft.process(&mut R_rs[index]);
+        let (score, tau) = get_score_tau(&R_rs[index]);
+        matches.push(BestMatch {
+            score,
+            central_star_index: index as u16, 
+            tau
+        });
+    }
+    // find best score 
+    let best_match = matches.iter().max_by(|&m1, &m2| {
+        m1.score.partial_cmp(&(m2.score)).unwrap()
+    }).unwrap();
+
+    println!("score of match: {}", best_match.score);
+
+    Ok((best_match.central_star_index, (k as u16 - best_match.tau)%k as u16))
 }
 
 fn print_flower_pattern(fp: &FlowerPattern) {
@@ -230,6 +239,24 @@ mod tests {
         }
     }
     #[test]
+    fn test_polaris_pattern() {
+        let all_stars = generate_database::read_hyd_database(4.0, 0.0017).unwrap();
+        let canopus_pattern = FlowerPattern::generate(46, 5, 0.35, &all_stars).unwrap();
+        let (ra, dec) = canopus_pattern.central_star.get_ra_dec();
+        println!("ra, dec of polaris: {:.2}h, {:.2}deg", ra*57.29578/15.0, dec*57.29577);
+        let n = canopus_pattern.outer_stars.len(); 
+        for i in 0..n {
+            let (ra, dec) = canopus_pattern.outer_stars[i].get_ra_dec();
+            println!("ra, dec: {:.2} {:.2}, magnitude {:.2}, distance {:.2}, angle {:.2}", 
+                ra*57.3, 
+                dec*57.3, 
+                canopus_pattern.outer_stars[i].brightness,
+                canopus_pattern.r[i]*57.295, 
+                flower::angle_of_outer_petel(&all_stars[45], &canopus_pattern.outer_stars[i])*57.295);
+            println!("angle between star {} and {}: {:.2}", i, (i + 1)%n, canopus_pattern.delta[i]*57.295);
+        }
+    }
+    #[test]
     fn test_db_generation() {
         if let Err(s) = generate_database::generate_db(4.0, 5, 0.52) {
             println!("{}", s);
@@ -238,18 +265,12 @@ mod tests {
     }
     fn generate_random_orthogonal_matrix() -> Matrix3<f64> {
         let mut rng = rand::thread_rng();
-        let mut y = Vector3::new(rng.gen_range(-1.0..1.0), rng.gen_range(-1.0..1.0), rng.gen_range(-1.0..1.0));
-        y = y / y.norm();
-        let mut x = y.cross(&Vector3::new(0.0, 0.0, 1.0));
+        let mut x = Vector3::new(rng.gen_range(-1.0..1.0), rng.gen_range(-1.0..1.0), rng.gen_range(-1.0..1.0));
         x = x / x.norm();
+        let mut y = Vector3::new(0.0, rng.gen_range(-1.0..1.0), rng.gen_range(-1.0..1.0)).cross(&x);
+        y = y / y.norm();
         let z = x.cross(&y);
         Matrix3::from_columns(&[x, y, z])
-        // let mut x = Vector3::new(rng.gen_range(-1.0..1.0), rng.gen_range(-1.0..1.0), rng.gen_range(-1.0..1.0));
-        // x = x / x.norm();
-        // let mut y = Vector3::new(0.0, rng.gen_range(-1.0..1.0), rng.gen_range(-1.0..1.0)).cross(&x);
-        // y = y / y.norm();
-        // let z = x.cross(&y);
-        // Matrix3::from_columns(&[x, y, z])
     }
     #[test]
     fn test_main_fun_of_module() {
@@ -260,14 +281,14 @@ mod tests {
         // generate list of captured stars
         let R_inv = R.try_inverse().unwrap();
         let fov = 0.52;
-        let k = 8;
+        let k = 10;
         let (DFT_db, flower_patterns) = generate_database::generate_db(4.0, k, fov).unwrap();
         let all_stars: Vec<star::Star> = flower_patterns.iter().map(|fp| fp.central_star).collect();
 
         let R_y = R.column(1);
         let captured_stars: Vec<star::Star> = all_stars
             .iter()
-            .filter(|&s| s.coords.dot(&R_y) > fov.cos())
+            .filter(|&s| s.coords.dot(&R_y) > (2.0*fov).cos())
             .map(|&s| star::Star {
                 index: 6969, 
                 coords: R_inv*s.coords,
@@ -279,6 +300,32 @@ mod tests {
         let experiment_R = get_rotation_matrix(&captured_stars, &DFT_db, &flower_patterns).unwrap();
         println!("exp: {:?}", experiment_R);
         println!("real: {:?}", R);
+    }
+    #[test]
+    fn long_test() {
+        for _ in 0..50 {
+            let R = generate_random_orthogonal_matrix();
+            let R_inv = R.try_inverse().unwrap();
+
+            // generate list of captured stars
+            let fov = 0.52;
+            let k = 7;
+            let (DFT_db, flower_patterns) = generate_database::generate_db(4.0, k, fov).unwrap();
+            let all_stars: Vec<star::Star> = flower_patterns.iter().map(|fp| fp.central_star).collect();
+
+            let R_y = R.column(1);
+            let captured_stars: Vec<star::Star> = all_stars
+                .iter()
+                // .filter(|&s| s.coords.dot(&R_y) > (2.5*fov).cos())
+                .map(|&s| star::Star {
+                    index: 6969, 
+                    coords: R_inv*s.coords,
+                    brightness: s.brightness
+                })
+                .collect();
+
+            let experiment_R = get_rotation_matrix(&captured_stars, &DFT_db, &flower_patterns).unwrap();
+        }
     }
     #[test]
     fn min_distance_between_stars() {

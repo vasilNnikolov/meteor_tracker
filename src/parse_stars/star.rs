@@ -12,7 +12,6 @@ pub struct Star {
 
 /// returns the cosine of the angle between two stars
 pub fn cos_angle_between_stars(s1: &Star, s2: &Star) -> f64 {
-    // dot product
     s1.coords.dot(&s2.coords)
 }
 

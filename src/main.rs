@@ -14,8 +14,9 @@ fn main() {
     }
 
     let mut buff2: Vec<Complex<f64>> = vec![];
+    let tau: i32 = 2;
     for i in 0..n {
-        buff2.push(buff[(((i - 3) % n + n) % n) as usize]);
+        buff2.push(buff[((i - tau + n) % n) as usize]);
         println!("{}, {}, {}", i, buff[i as usize].norm(), buff2[i as usize].norm());
     }
 
@@ -33,4 +34,7 @@ fn main() {
     for i in 0..n as usize{
         println!("{}: {}", i, R[i].norm());
     }
+    let (max_index, score) = R.iter().map(|&c| c.norm()).enumerate().max_by(|&(_, f1), &(_, f2)| f1.partial_cmp(&f2).unwrap()).unwrap();
+    println!("score: {}, tau is {}", score, (n - max_index as i32)%n);
+
 }

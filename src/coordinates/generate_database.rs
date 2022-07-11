@@ -56,6 +56,7 @@ pub fn read_hyd_database(m_lim: f64, min_angle: f64) -> Result<Vec<Star>, String
                 brightness, 
                 index as u16));
     }
+
     // merge stars close to min_angle
     let n = stars.len();
     let mut merged_stars: Vec<Star> = vec![];

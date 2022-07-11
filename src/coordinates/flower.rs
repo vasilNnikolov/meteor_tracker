@@ -26,7 +26,7 @@ pub fn angle_of_outer_petel(central_star: &Star, outer_star: &Star) -> f64 {
     let z_prime = x_prime.cross(&y_prime);
 
     let r = Matrix3::from_columns(&[x_prime, y_prime, z_prime]);
-    // todo work out the inverse by hand and hard-code it, for slightly better code speed 
+    // TODO work out the inverse by hand and hard-code it, for slightly better code speed 
     let r_inv = r.try_inverse().unwrap();
 
     let petel_new_coords = r_inv*outer_star.coords;
@@ -84,19 +84,19 @@ impl FlowerPattern {
         if stars_in_fov.len() < k as usize {
             return Err(String::from(format!("There are {} stars in the fov, less than k={}", stars_in_fov.len(), k)));
         }
-        let mut stars_in_fov: Vec<&Star> = stars_in_fov.into_iter().take(k as usize).collect();
+        stars_in_fov = stars_in_fov.into_iter().take(k as usize).collect();
         
         // order the stars by their angle relative to the x axis of the sky camera, in ascending
         // order
         stars_in_fov.sort_by(|&a, &b| {
-            angle_of_outer_petel(central_star, a).partial_cmp(&angle_of_outer_petel(central_star, b)).unwrap_or(std::cmp::Ordering::Equal)
+            angle_of_outer_petel(central_star, a).partial_cmp(&angle_of_outer_petel(central_star, b)).unwrap()
         });
 
         for i in 0..k as usize {
             let petel = stars_in_fov[i];
             let next_petel = stars_in_fov[(i + 1) % k as usize];
             outer_stars.push(*petel);
-            radius.push(star::angle_between_stars(&petel, central_star));
+            radius.push(star::angle_between_stars(petel, central_star));
             delta.push(delta_angle(central_star, petel, next_petel));
         }
 
@@ -114,7 +114,7 @@ impl FlowerPattern {
     /// petel_index - between 0 and k
     /// angle returned is between 0 and 2 pi
     pub fn angle_of_petel(&self, petel_index: u16) -> Result<f64, String> {
-        if petel_index >= self.outer_stars.len() as u16 {
+        if petel_index > self.outer_stars.len() as u16 {
             return Err(String::from("petel_index is larger than k, the number of petels in the flower pattern"));
         }
         let y_prime = self.central_star.coords;
