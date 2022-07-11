@@ -117,7 +117,6 @@ fn generate_flower_pattern_from_observation(captured_stars: &Vec<star::Star>, k:
     stars_to_sort.sort_by(|&a, &b| {
         b.coords.dot(&center_of_image).partial_cmp(&(a.coords.dot(&center_of_image))).unwrap()
     });
-    println!("distance between center of image and central star of observation: {} rad", stars_to_sort[0].coords.dot(&center_of_image).acos());
     // index is 1 and not 0 because of the implementation of generate, made for index according to
     // the HYG db
     Ok(FlowerPattern::generate(1, k, fov, &stars_to_sort)?)
@@ -303,20 +302,18 @@ mod tests {
     }
     #[test]
     fn long_test() {
-        for _ in 0..50 {
+        let fov = 0.52;
+        let k = 10;
+        let (DFT_db, flower_patterns) = generate_database::generate_db(4.0, k, fov).unwrap();
+        let all_stars: Vec<star::Star> = flower_patterns.iter().map(|fp| fp.central_star).collect();
+        for _ in 0..1000 {
             let R = generate_random_orthogonal_matrix();
             let R_inv = R.try_inverse().unwrap();
-
-            // generate list of captured stars
-            let fov = 0.52;
-            let k = 7;
-            let (DFT_db, flower_patterns) = generate_database::generate_db(4.0, k, fov).unwrap();
-            let all_stars: Vec<star::Star> = flower_patterns.iter().map(|fp| fp.central_star).collect();
 
             let R_y = R.column(1);
             let captured_stars: Vec<star::Star> = all_stars
                 .iter()
-                // .filter(|&s| s.coords.dot(&R_y) > (2.5*fov).cos())
+                .filter(|&s| s.coords.dot(&R_y) > (1.5*fov).cos())
                 .map(|&s| star::Star {
                     index: 6969, 
                     coords: R_inv*s.coords,

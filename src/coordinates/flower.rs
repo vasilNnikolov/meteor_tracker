@@ -73,13 +73,20 @@ impl FlowerPattern {
         let mut stars_in_fov: Vec<&Star> = (*stars).iter().filter(|&s| {
             let cos_angle = central_star.coords.dot(&s.coords);
             // the second portion is so it does not include the central star itself
-            cos_angle > fov.cos() && cos_angle < 1.0 
+            // cos_angle > fov.cos() && cos_angle < 0.9999999
+            cos_angle > fov.cos() && cos_angle < 0.999999
         }).collect();
 
-        // order the stars, lowest magnitude first
+        // order the stars, lowest magnitude first, then highest distance from central star
         stars_in_fov.sort_by(|&s1, &s2| {
-            s1.brightness.partial_cmp(&(s2.brightness)).unwrap_or(std::cmp::Ordering::Equal)
+            match s1.brightness.partial_cmp(&(s2.brightness)).unwrap() {
+                std::cmp::Ordering::Equal => {
+                    s1.coords.dot(&central_star.coords).partial_cmp(&(s2.coords.dot(&central_star.coords))).unwrap()
+                }, 
+                other => other
+            }
         });
+
         // take first k brightest stars
         if stars_in_fov.len() < k as usize {
             return Err(String::from(format!("There are {} stars in the fov, less than k={}", stars_in_fov.len(), k)));
