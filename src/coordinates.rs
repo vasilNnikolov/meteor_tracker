@@ -15,18 +15,19 @@ pub fn get_rotation_matrix(captured_stars: &Vec<star::Star>, dft_database: &gene
     let n = dft_database.r_dft_coefficients.len();
     let k = dft_database.r_dft_coefficients[0].len();
     let fov = dft_database.fov;
+
     let observed_pattern = generate_flower_pattern_from_observation(captured_stars, k as u16, fov)?;
 
+    // generate DFT coefficients of r(i) and delta(i) functions, i in [1..k]
     let mut fft_planner = FftPlanner::new();
     let fft = fft_planner.plan_fft_forward(k as usize);
     let mut r_values: Vec<Complex<f64>> = observed_pattern.r.iter().map(|&value_f| Complex::new(value_f, 0.0)).collect();
     let mut delta_values: Vec<Complex<f64>> = observed_pattern.delta.iter().map(|&value_f| Complex::new(value_f, 0.0)).collect();
-
-    // generate DFT coefficients of r(i) and delta(i) functions, i in [1..k]
     fft.process(&mut r_values);
     fft.process(&mut delta_values);
     
     // pass those to the match_catalogue_star_to_central function
+    // those are the Rs as in the wiki article
     let mut R_rs: Vec<Vec<Complex<f64>>> = vec![];
     let mut R_deltas: Vec<Vec<Complex<f64>>> = vec![];
 
@@ -53,29 +54,14 @@ pub fn get_rotation_matrix(captured_stars: &Vec<star::Star>, dft_database: &gene
         }
     };
 
-    // angle of petel minus angle of corresponding petel in the catalogue flower pattern
-    let mut average_angle_offset = 0.0;
-    let catalogue_flower_pattern = flower_patterns.get(central_star_true_index as usize).unwrap(); 
-     
-    for petel_index in 0..k as i32 {
-        let corresponding_index_of_observed_star = (petel_index - tau as i32 + k as i32) % k as i32;
-        let observed_angle = observed_pattern.angle_of_petel(petel_index as u16).unwrap();
-        let catalogue_angle = catalogue_flower_pattern.angle_of_petel(corresponding_index_of_observed_star as u16).unwrap();
-        let delta_angle = observed_angle - catalogue_angle;
-        if delta_angle < 0.0 {
-            average_angle_offset += delta_angle + 2.0*std::f64::consts::PI;
-        } else {
-            average_angle_offset += delta_angle;
-        }
-    }
-    average_angle_offset /= k as f64;
+    // angle of petel minus angle of corresponding petel in the catalogue flower pattern, it is
+    // always positive, so in range [0, 2pi)
+    let catalogue_flower_pattern = flower_patterns.get(central_star_true_index as usize).unwrap();
+    let average_angle_offset = get_angle_of_relative_rotation(&observed_pattern, &catalogue_flower_pattern, tau);
 
-    // in geocentric coordinate system
-    let central_star_coords = flower_patterns.get(central_star_true_index as usize).unwrap().central_star.coords; 
-
-    // matrix magic begins, please work
+    // matrix magic begins
     // build T_rc
-    let y_rc = central_star_coords; 
+    let y_rc = catalogue_flower_pattern.central_star.coords; 
     let mut x_rc = y_rc.cross(&Vector3::new(0.0, 0.0, 1.0));
     x_rc = x_rc/x_rc.norm();
     let z_rc= x_rc.cross(&y_rc);
@@ -97,11 +83,31 @@ pub fn get_rotation_matrix(captured_stars: &Vec<star::Star>, dft_database: &gene
 
     let T_rc_prime_inverse = Matrix3::from_columns(&[x_rc_prime, y_rc_prime, z_rc_prime]).try_inverse().unwrap(); 
 
-    let R = T_rc*Rot_y*T_rc_prime_inverse;
-
-    Ok(R)
+    Ok(T_rc*Rot_y*T_rc_prime_inverse)
 }
-
+/// determines how much the camera is rotated counter-clockwise relative to a sky coordinate system (see README)
+/// centered at the determined central star
+/// observed_pattern - the observed flower pattern with star coordinates in the camera coordinate
+/// system
+/// catalogue_flower_pattern - the FP of the star which was determined to be central, coordinates
+/// are in the geocentric CS
+/// tau - the offset of the indexes of r'(i) and r(i), such that r'(i) = r((i - tau)%k)
+fn get_angle_of_relative_rotation(observed_pattern: &FlowerPattern, catalogue_flower_pattern: &FlowerPattern, tau: u16) -> f64 {
+    let k = observed_pattern.r.len();
+    let mut average_angle_offset = 0.0;
+    for petel_index in 0..k as i32 {
+        let corresponding_index_of_observed_star = (petel_index - tau as i32 + k as i32) % k as i32;
+        let observed_angle = observed_pattern.angle_of_petel(petel_index as u16).unwrap();
+        let catalogue_angle = catalogue_flower_pattern.angle_of_petel(corresponding_index_of_observed_star as u16).unwrap();
+        let delta_angle = observed_angle - catalogue_angle;
+        if delta_angle < 0.0 {
+            average_angle_offset += delta_angle + 2.0*std::f64::consts::PI;
+        } else {
+            average_angle_offset += delta_angle;
+        }
+    }
+    average_angle_offset / k as f64
+}
 /// generates a flower pattern from the observed stars, to be used for matching against the DFT
 /// database 
 /// TODO create better implementation
@@ -121,7 +127,7 @@ fn generate_flower_pattern_from_observation(captured_stars: &Vec<star::Star>, k:
     // the HYG db
     Ok(FlowerPattern::generate(1, k, fov, &stars_to_sort)?)
 }
-/// returns the index of the catalogue star which best matches the observed flower pattern, and the
+/// returns the index of the catalogue star (starting at 0, not at 1 as the catalogue itself) which best matches the observed flower pattern, and the
 /// offset tau, for which r'(i) = r((i - tau) % k)
 /// R_rs - a Vec of the same length of the star catalogue, each entry is the R vector corresponding
 /// to the functions r(i) and r'(i) for every star from the catalogue and the central star
@@ -172,7 +178,6 @@ fn match_catalogue_star_to_central(R_rs: &mut Vec<Vec<Complex<f64>>>, R_deltas: 
 
     Ok((best_match.central_star_index, (k as u16 - best_match.tau)%k as u16))
 }
-
 fn print_flower_pattern(fp: &FlowerPattern) {
     let n = fp.outer_stars.len(); 
     let (ra, dec) = fp.central_star.get_ra_dec();
