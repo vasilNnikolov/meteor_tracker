@@ -1,5 +1,5 @@
-pub mod generate_database;
-pub mod flower;
+mod generate_database;
+mod flower;
 #[cfg(test)]
 mod tests;
 use crate::parse_stars::star;

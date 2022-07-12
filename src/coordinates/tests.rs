@@ -1,5 +1,4 @@
 
-#[cfg(test)]
 use super::*;
 extern crate rand;
 use rand::Rng;
