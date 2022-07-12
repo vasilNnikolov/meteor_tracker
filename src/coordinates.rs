@@ -59,54 +59,9 @@ pub fn get_rotation_matrix(captured_stars: &Vec<star::Star>, dft_database: &gene
     let catalogue_flower_pattern = flower_patterns.get(central_star_true_index as usize).unwrap();
     let average_angle_offset = get_angle_of_relative_rotation(&observed_pattern, &catalogue_flower_pattern, tau);
 
-    // matrix magic begins
-    // build T_rc
-    let y_rc = catalogue_flower_pattern.central_star.coords; 
-    let mut x_rc = y_rc.cross(&Vector3::new(0.0, 0.0, 1.0));
-    x_rc = x_rc/x_rc.norm();
-    let z_rc= x_rc.cross(&y_rc);
+    let R = construct_rot_matrix_from_data(&observed_pattern, &catalogue_flower_pattern, average_angle_offset);
 
-    let T_rc = Matrix3::from_columns(&[x_rc, y_rc, z_rc]); 
-
-    // build Rot_y(-average_angle_offset)
-    let x_roty = Vector3::new(average_angle_offset.cos(), 0.0, -(average_angle_offset.sin()));
-    let y_roty = Vector3::new(0.0, 1.0, 0.0);
-    let z_roty = x_roty.cross(&y_roty);
-
-    let Rot_y = Matrix3::from_columns(&[x_roty, y_roty, z_roty]); 
-
-    // build T_rc' inverse
-    let y_rc_prime = observed_pattern.central_star.coords; 
-    let mut x_rc_prime = y_rc_prime.cross(&Vector3::new(0.0, 0.0, 1.0));
-    x_rc_prime = x_rc_prime/x_rc_prime.norm();
-    let z_rc_prime= x_rc_prime.cross(&y_rc_prime);
-
-    let T_rc_prime_inverse = Matrix3::from_columns(&[x_rc_prime, y_rc_prime, z_rc_prime]).try_inverse().unwrap(); 
-
-    Ok(T_rc*Rot_y*T_rc_prime_inverse)
-}
-/// determines how much the camera is rotated counter-clockwise relative to a sky coordinate system (see README)
-/// centered at the determined central star
-/// observed_pattern - the observed flower pattern with star coordinates in the camera coordinate
-/// system
-/// catalogue_flower_pattern - the FP of the star which was determined to be central, coordinates
-/// are in the geocentric CS
-/// tau - the offset of the indexes of r'(i) and r(i), such that r'(i) = r((i - tau)%k)
-fn get_angle_of_relative_rotation(observed_pattern: &FlowerPattern, catalogue_flower_pattern: &FlowerPattern, tau: u16) -> f64 {
-    let k = observed_pattern.r.len();
-    let mut average_angle_offset = 0.0;
-    for petel_index in 0..k as i32 {
-        let corresponding_index_of_observed_star = (petel_index - tau as i32 + k as i32) % k as i32;
-        let observed_angle = observed_pattern.angle_of_petel(petel_index as u16).unwrap();
-        let catalogue_angle = catalogue_flower_pattern.angle_of_petel(corresponding_index_of_observed_star as u16).unwrap();
-        let delta_angle = observed_angle - catalogue_angle;
-        if delta_angle < 0.0 {
-            average_angle_offset += delta_angle + 2.0*std::f64::consts::PI;
-        } else {
-            average_angle_offset += delta_angle;
-        }
-    }
-    average_angle_offset / k as f64
+    Ok(R)
 }
 /// generates a flower pattern from the observed stars, to be used for matching against the DFT
 /// database 
@@ -177,6 +132,59 @@ fn match_catalogue_star_to_central(R_rs: &mut Vec<Vec<Complex<f64>>>, R_deltas: 
     println!("score of match: {}", best_match.score);
 
     Ok((best_match.central_star_index, (k as u16 - best_match.tau)%k as u16))
+}
+/// determines how much the camera is rotated counter-clockwise relative to a sky coordinate system (see README)
+/// centered at the determined central star
+/// observed_pattern - the observed flower pattern with star coordinates in the camera coordinate
+/// system
+/// catalogue_flower_pattern - the FP of the star which was determined to be central, coordinates
+/// are in the geocentric CS
+/// tau - the offset of the indexes of r'(i) and r(i), such that r'(i) = r((i - tau)%k)
+fn get_angle_of_relative_rotation(observed_pattern: &FlowerPattern, catalogue_flower_pattern: &FlowerPattern, tau: u16) -> f64 {
+    let k = observed_pattern.r.len();
+    let mut average_angle_offset = 0.0;
+    for petel_index in 0..k as i32 {
+        let corresponding_index_of_observed_star = (petel_index - tau as i32 + k as i32) % k as i32;
+        let observed_angle = observed_pattern.angle_of_petel(petel_index as u16).unwrap();
+        let catalogue_angle = catalogue_flower_pattern.angle_of_petel(corresponding_index_of_observed_star as u16).unwrap();
+        let delta_angle = observed_angle - catalogue_angle;
+        if delta_angle < 0.0 {
+            average_angle_offset += delta_angle + 2.0*std::f64::consts::PI;
+        } else {
+            average_angle_offset += delta_angle;
+        }
+    }
+    average_angle_offset / k as f64
+}
+/// after we have determined the best match for the central star and the rotation of the camera
+/// relative to the sky coordinate system centered at that star, this fn performs the matrix magic
+/// to compute the final rotation matrix of the camera, such that r_geocentric = R*r_camera
+fn construct_rot_matrix_from_data(observed_pattern: &FlowerPattern, catalogue_flower_pattern: &FlowerPattern, average_angle_offset: f64) -> Matrix3<f64> {
+    // matrix magic begins
+    // build T_rc
+    let y_rc = catalogue_flower_pattern.central_star.coords; 
+    let mut x_rc = y_rc.cross(&Vector3::new(0.0, 0.0, 1.0));
+    x_rc = x_rc/x_rc.norm();
+    let z_rc= x_rc.cross(&y_rc);
+
+    let T_rc = Matrix3::from_columns(&[x_rc, y_rc, z_rc]); 
+
+    // build Rot_y(-average_angle_offset)
+    let x_roty = Vector3::new(average_angle_offset.cos(), 0.0, -(average_angle_offset.sin()));
+    let y_roty = Vector3::new(0.0, 1.0, 0.0);
+    let z_roty = x_roty.cross(&y_roty);
+
+    let Rot_y = Matrix3::from_columns(&[x_roty, y_roty, z_roty]); 
+
+    // build T_rc' inverse
+    let y_rc_prime = observed_pattern.central_star.coords; 
+    let mut x_rc_prime = y_rc_prime.cross(&Vector3::new(0.0, 0.0, 1.0));
+    x_rc_prime = x_rc_prime/x_rc_prime.norm();
+    let z_rc_prime= x_rc_prime.cross(&y_rc_prime);
+
+    let T_rc_prime_inverse = Matrix3::from_columns(&[x_rc_prime, y_rc_prime, z_rc_prime]).try_inverse().unwrap(); 
+
+    T_rc*Rot_y*T_rc_prime_inverse
 }
 fn print_flower_pattern(fp: &FlowerPattern) {
     let n = fp.outer_stars.len(); 
