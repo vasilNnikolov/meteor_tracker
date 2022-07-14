@@ -80,9 +80,7 @@ fn generate_flower_pattern_from_observation(captured_stars: &Vec<star::Star>, k:
     stars_to_sort.sort_by(|&a, &b| {
         b.coords.dot(&center_of_image).partial_cmp(&(a.coords.dot(&center_of_image))).unwrap()
     });
-    // index is 1 and not 0 because of the implementation of generate, made for index according to
-    // the HYG db
-    Ok(FlowerPattern::generate(1, k, fov, &stars_to_sort)?)
+    Ok(FlowerPattern::generate(0, k, fov, &stars_to_sort)?)
 }
 /// returns the index of the catalogue star, starting at 0, which best matches the observed flower pattern, and the
 /// offset tau, for which r'(i) = r((i - tau) % k)
