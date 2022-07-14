@@ -52,7 +52,7 @@ fn delta_angle(central_star: &Star, petel_i: &Star, petel_i_plus_1: &Star) -> f6
 
 impl FlowerPattern {
     /// generates the flower pattern for a star
-    /// index - the index of the central star according to the HYG db
+    /// index - the index of the central star according to the stars vector
     /// k - number of outer stars, used to limit low brightness stars in the petels
     /// fov - RADIUS of the field of view of the camera in radians, fov = min(w, h)/2 where w and h are the
     /// sizes of the camera field in radians

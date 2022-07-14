@@ -67,7 +67,6 @@ pub fn get_rotation_matrix(captured_stars: &Vec<star::Star>, dft_database: &gene
 }
 /// generates a flower pattern from the observed stars, to be used for matching against the DFT
 /// database 
-/// TODO create better implementation
 /// currently it selects the (k + 1) brightest stars, picks the one closest to the center of the
 /// image as the central one, and the other k as petels
 fn generate_flower_pattern_from_observation(captured_stars: &Vec<star::Star>, k: u16, fov: f64) -> Result<FlowerPattern, String> {
@@ -133,7 +132,7 @@ fn match_catalogue_star_to_central(R_rs: &mut Vec<Vec<Complex<f64>>>, R_deltas: 
 
     Ok((best_match.central_star_index, (k as u16 - best_match.tau)%k as u16))
 }
-/// determines how much the camera is rotated counter-clockwise relative to a sky coordinate system (see README)
+/// determines how much the camera is rotated counter-clockwise(so return value is always in the range [0, 2pi)) relative to a sky coordinate system (see README)
 /// centered at the determined central star
 /// observed_pattern - the observed flower pattern with star coordinates in the camera coordinate
 /// system

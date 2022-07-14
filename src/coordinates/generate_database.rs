@@ -15,6 +15,10 @@ pub struct DFT_database {
 }
 
 /// tries to read HYG db, if successful returns a vector of stars
+/// Note: since this fn merges some stars that are closer to each other than min_angle, while the
+/// star.index attribute of the Star objects is sequential in the vector, it is not the same as the
+/// index of the star in the file. This function should be the only interface between the file and
+/// the rest of the program
 /// m_lim - the limiting magnitude of the camera, and tha highest magnitude in the resulting vector
 /// min_angle - if stars are closer than min_angle from one another, they are merged into one star
 pub fn read_hyd_database(m_lim: f64, min_angle: f64) -> Result<Vec<Star>, String> {
@@ -80,7 +84,7 @@ pub fn read_hyd_database(m_lim: f64, min_angle: f64) -> Result<Vec<Star>, String
 }
 
 
-/// Generates a tuple of DFT_database struct and a vector of the flower patterns(for convenience)
+/// Generates a tuple of DFT_database struct and a vector of the flower patterns
 /// m_lim - the limiting magnitude of the camera
 /// k - the number of outer stars in the flower pattern, approx 10, maybe more
 /// fov - the radius of the field of view of the camera, in radians
