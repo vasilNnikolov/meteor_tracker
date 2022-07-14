@@ -130,7 +130,7 @@ fn long_test() {
     let k = 10;
     let (DFT_db, flower_patterns) = generate_database::generate_db(4.0, k, fov).unwrap();
     let all_stars: Vec<star::Star> = flower_patterns.iter().map(|fp| fp.central_star).collect();
-    for _ in 0..1000 {
+    for i in 0..1000 {
         let R = generate_random_orthogonal_matrix();
         let R_inv = R.try_inverse().unwrap();
 
@@ -146,6 +146,10 @@ fn long_test() {
             .collect();
 
         let experiment_R = get_rotation_matrix(&captured_stars, &DFT_db, &flower_patterns).unwrap();
+        if i%200 == 0 {
+            println!("real: {}", R);
+            println!("expe: {}", experiment_R);
+        }
     }
 }
 #[test]

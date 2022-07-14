@@ -91,11 +91,91 @@ fn generate_flower_pattern_from_observation(captured_stars: &Vec<star::Star>, k:
 /// possibly indicating a false central star, or many false stars as petels
 /// TODO make a better choice function
 fn match_catalogue_star_to_central(R_rs: &mut Vec<Vec<Complex<f64>>>, R_deltas: &mut Vec<Vec<Complex<f64>>>) -> Result<(u16, u16), String> {
-    let n = R_rs.len();
+    // TODO remove comment
+    // {
+    //     let n = R_rs.len();
+    //     let mut planner = FftPlanner::new();
+    //     let k = R_rs[0].len();
+    //     let inverse_fft = planner.plan_fft_inverse(k);
+
+    //     struct BestMatch {
+    //         score: f64, 
+    //         central_star_index: u16, 
+    //         tau: u16
+    //     }
+        
+    //     fn get_score_tau(r: &Vec<Complex<f64>>) -> (f64, u16) {
+    //         let (max_r_index, max_r_value): (usize, f64) = r.iter().enumerate()
+    //             .map(|(i, c)| (i, c.norm()))
+    //             .max_by(|&(_, f1), &(_, f2)| f1.partial_cmp(&f2).unwrap()).unwrap();
+
+    //         let k = r.len();
+    //         let residual_quadratic = r.iter().map(|&c| c.norm().powi(2)).sum::<f64>() - max_r_value.powi(2);
+    //         let score: f64 = 1.0 - (residual_quadratic/(k - 1) as f64).powf(0.5)/max_r_value;
+    //         (score, max_r_index as u16) 
+    //     }
+
+    //     let mut matches: Vec<BestMatch> = vec![];
+    //     for index in 0..n {
+    //         inverse_fft.process(&mut R_rs[index]);
+    //         let (score, tau) = get_score_tau(&R_rs[index]);
+    //         matches.push(BestMatch {
+    //             score,
+    //             central_star_index: index as u16, 
+    //             tau
+    //         });
+    //     }
+    //     // find best score 
+    //     let best_match = matches.iter().max_by(|&m1, &m2| {
+    //         m1.score.partial_cmp(&(m2.score)).unwrap()
+    //     }).unwrap();
+
+    //     println!("score of match: {}", best_match.score);
+
+    //     Ok((best_match.central_star_index, (k as u16 - best_match.tau)%k as u16))
+    // }
+    let p: u16 = 10;
+    let best_matches_r = top_match_candidates(R_rs, p)?;
+    let best_matches_delta = top_match_candidates(R_deltas, p)?;
+    
+    // a vector of (central_star_index, tau) elements which are in both the best matches for R and
+    // delta
+    let mut matching_star: Vec<(u16, u16)> = vec![];
+    for i in 0..p as usize{
+        for j in 0..p as usize{
+            if best_matches_r[i] == best_matches_delta[j] {
+                matching_star.push(best_matches_r[i]);
+            } 
+        }
+    }
+    if matching_star.len() == 0 {
+        return Err("there are no stars which match both the r'(i) and delta'(i) of the observed flower pattern".to_string());
+    }
+    // this is the match that is the best according to distance from central star measurements
+    // (r'(i)). the matching_star vector is sorted by the score of matches from r'(i)
+    // most of the times the matching_star vec will have one element anyways(i hope)
+    Ok(matching_star[0])
+}
+
+/// this function looks at an R vector (as in wiki article) and returns the top p candidates for
+/// matches, as per some score function inside this one
+/// returns - a result of Vector of tuples (star_index, tau), the vector has length p. The vector
+/// is sorted by highest score first
+/// if it does not find enough good matches or deems the best matches too bad it returns an error
+/// with the corresponding message 
+/// R needs to be mutable to allow for inplace inverse fft, using which it determines the best
+/// matching stars
+fn top_match_candidates(R: &mut Vec<Vec<Complex<f64>>>, p: u16) -> Result<Vec<(u16, u16)>, String> {
+    let n = R.len();
+    if n < p as usize {
+        return Err(format!("The passed value for R vector has less elements than the required {} top matches ({} < {})", 
+                p, n, p));
+    }
     let mut planner = FftPlanner::new();
-    let k = R_rs[0].len();
+    let k = R[0].len();
     let inverse_fft = planner.plan_fft_inverse(k);
 
+    #[derive(Copy, Clone)]
     struct BestMatch {
         score: f64, 
         central_star_index: u16, 
@@ -115,23 +195,32 @@ fn match_catalogue_star_to_central(R_rs: &mut Vec<Vec<Complex<f64>>>, R_deltas: 
 
     let mut matches: Vec<BestMatch> = vec![];
     for index in 0..n {
-        inverse_fft.process(&mut R_rs[index]);
-        let (score, tau) = get_score_tau(&R_rs[index]);
+        inverse_fft.process(&mut R[index]);
+        let (score, tau) = get_score_tau(&R[index]);
         matches.push(BestMatch {
             score,
             central_star_index: index as u16, 
             tau
         });
     }
-    // find best score 
-    let best_match = matches.iter().max_by(|&m1, &m2| {
-        m1.score.partial_cmp(&(m2.score)).unwrap()
-    }).unwrap();
+    // TODO make finding the the top p best matches happen in the upper loop, for better efficiency
+    let mut top_p_matches: Vec<BestMatch> = vec![];
+    for _ in 0..p {
+        let (best_match_index, &best_match) = matches.iter().enumerate().max_by(|&(_, m1), &(_, m2)| {
+            m1.score.partial_cmp(&(m2.score)).unwrap()
+        }).unwrap();
+        top_p_matches.push(best_match);
+        // so the next iteration does not pick up the same maximum in score
+        matches.remove(best_match_index);
+    }
 
-    println!("score of match: {}", best_match.score);
+    let final_result: Vec<(u16, u16)> = top_p_matches.iter().map(|&bm| {
+        (bm.central_star_index, (k as u16 - bm.tau)%k as u16)
+    }).collect(); 
 
-    Ok((best_match.central_star_index, (k as u16 - best_match.tau)%k as u16))
+    Ok(final_result)
 }
+
 /// determines how much the camera is rotated counter-clockwise(so return value is always in the range [0, 2pi)) relative to a sky coordinate system (see README)
 /// centered at the determined central star
 /// observed_pattern - the observed flower pattern with star coordinates in the camera coordinate
