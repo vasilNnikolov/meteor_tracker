@@ -63,9 +63,9 @@ impl FlowerPattern {
         let mut radius: Vec<f64> = vec![];
         let mut delta: Vec<f64> = vec![];
 
-        let central_star: &Star = match stars.get(index as usize - 1) {
+        let central_star: &Star = match stars.get(index as usize) {
             Some(s) => s, 
-            None => return Err(String::from("The index of the central star is larger than the largest one in the database or is 0"))
+            None => return Err(String::from("The index of the central star is larger than the largest one in the database"))
         };
 
         // dot product of the coordinates should be larger than cos(FOV) in order for the star to

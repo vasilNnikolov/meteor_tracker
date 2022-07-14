@@ -15,7 +15,6 @@ pub struct DFT_database {
 }
 
 /// tries to read HYG db, if successful returns a vector of stars
-/// note: the indexes of the stars in the Star struct start at 1 
 /// m_lim - the limiting magnitude of the camera, and tha highest magnitude in the resulting vector
 /// min_angle - if stars are closer than min_angle from one another, they are merged into one star
 pub fn read_hyd_database(m_lim: f64, min_angle: f64) -> Result<Vec<Star>, String> {
@@ -30,7 +29,7 @@ pub fn read_hyd_database(m_lim: f64, min_angle: f64) -> Result<Vec<Star>, String
     lines.next(); // the heading 
 
     let mut stars: Vec<Star> = vec![];
-    for (index, line) in lines.enumerate() {
+    for (line_index, line) in lines.enumerate() {
         let line_contents = line.split(',').collect::<Vec<&str>>();
         if line_contents.len() != 4 as usize {
             return Err("The hyg star db has a line with more or less than 3 entries".to_string());
@@ -41,11 +40,11 @@ pub fn read_hyd_database(m_lim: f64, min_angle: f64) -> Result<Vec<Star>, String
         for i in 0..4 {
             let x = line_contents[i].parse::<f64>();
             match x {
-                Err(_) => return Err(format!("Bad data on row {} of HYG database", index)), 
+                Err(_) => return Err(format!("Bad data on row {} of HYG database", line_index)), 
                 Ok(f) => line_contents_float[i] = f
             }
         }
-        let [index, ra, dec, brightness] = line_contents_float;
+        let [star_index, ra, dec, brightness] = line_contents_float;
 
         if brightness > m_lim {
             break;
@@ -54,14 +53,14 @@ pub fn read_hyd_database(m_lim: f64, min_angle: f64) -> Result<Vec<Star>, String
                 ra*15.0*std::f64::consts::PI/180.0, // ra in the database is in hours
                 dec*std::f64::consts::PI/180.0, 
                 brightness, 
-                index as u16));
+                star_index as u16));
     }
 
     // merge stars close to min_angle
     let n = stars.len();
     let mut merged_stars: Vec<Star> = vec![];
     let mut has_already_been_merged: Vec<bool> = vec![false; n];
-    let mut index_num = 1;
+    let mut index_num = 0;
     for i in 0..n {
         if has_already_been_merged[i] {
             continue;

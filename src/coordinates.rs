@@ -84,7 +84,7 @@ fn generate_flower_pattern_from_observation(captured_stars: &Vec<star::Star>, k:
     // the HYG db
     Ok(FlowerPattern::generate(1, k, fov, &stars_to_sort)?)
 }
-/// returns the index of the catalogue star (starting at 0, not at 1 as the catalogue itself) which best matches the observed flower pattern, and the
+/// returns the index of the catalogue star, starting at 0, which best matches the observed flower pattern, and the
 /// offset tau, for which r'(i) = r((i - tau) % k)
 /// R_rs - a Vec of the same length of the star catalogue, each entry is the R vector corresponding
 /// to the functions r(i) and r'(i) for every star from the catalogue and the central star
