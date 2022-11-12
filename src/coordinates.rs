@@ -18,59 +18,40 @@ pub fn get_rotation_matrix(
     flower_patterns: &Vec<FlowerPattern>,
 ) -> Result<nalgebra::Matrix3<f64>, String> {
     // get size of the catalogue
-    let n = dft_database.r_dft_coefficients.len();
-    let k = dft_database.r_dft_coefficients[0].len();
+    let n = dft_database.f_dft_coefficients.len();
+    let k = dft_database.f_dft_coefficients[0].len();
     let fov = dft_database.fov;
 
     let observed_pattern = generate_flower_pattern_from_observation(captured_stars, k as u16, fov)?;
 
-    // generate DFT coefficients of r(i) and delta(i) functions, i in [1..k]
+    let mut observed_f_values = generate_database::get_f_values(&observed_pattern);
+    // get the dft coefficients of the observed fvalues
     let mut fft_planner = FftPlanner::new();
     let fft = fft_planner.plan_fft_forward(k as usize);
-    let mut r_values: Vec<Complex<f64>> = observed_pattern
-        .r
-        .iter()
-        .map(|&value_f| Complex::new(value_f, 0.0))
-        .collect();
-    let mut delta_values: Vec<Complex<f64>> = observed_pattern
-        .delta
-        .iter()
-        .map(|&value_f| Complex::new(value_f, 0.0))
-        .collect();
-    fft.process(&mut r_values);
-    fft.process(&mut delta_values);
+    fft.process(&mut observed_f_values);
+    let observed_dft_values = observed_f_values;
 
-    // pass those to the match_catalogue_star_to_central function
-    // those are the Rs as in the wiki article
-    let mut R_rs: Vec<Vec<Complex<f64>>> = vec![];
-    let mut R_deltas: Vec<Vec<Complex<f64>>> = vec![];
+    let mut R_fs: Vec<Vec<Complex<f64>>> = vec![];
 
     for star_index in 0..n {
         // the R vectors of complex numbers as in the wikipedia page for phase correlation
-        let mut R_r: Vec<Complex<f64>> = vec![];
-        let mut R_delta: Vec<Complex<f64>> = vec![];
+        let mut R_f: Vec<Complex<f64>> = vec![];
         for i in 0..k {
-            let (g_a_r, g_b_r) = (dft_database.r_dft_coefficients[star_index][i], r_values[i]);
-            R_r.push(g_a_r * g_b_r.conj() / (g_a_r * g_b_r.conj()).norm());
-
-            let (g_a_delta, g_b_delta) = (
-                dft_database.delta_dft_coefficients[star_index][i],
-                delta_values[i],
+            let (g_a_r, g_b_r) = (
+                dft_database.f_dft_coefficients[star_index][i],
+                observed_dft_values[i],
             );
-            R_delta.push(g_a_delta * g_b_delta.conj() / (g_a_delta * g_b_delta.conj()).norm());
+            R_f.push(g_a_r * g_b_r.conj() / (g_a_r * g_b_r.conj()).norm());
         }
-        R_rs.push(R_r);
-        R_deltas.push(R_delta);
+        R_fs.push(R_f);
     }
 
-    let (central_star_true_index, tau) =
-        match match_catalogue_star_to_central(&mut R_rs, &mut R_deltas) {
-            Ok((index, t)) => (index, t),
-            Err(s) => {
-                // TODO handle error of no matched star better
-                return Err(s);
-            }
-        };
+    let (central_star_true_index, tau) = match match_catalogue_star_to_central(&mut R_fs) {
+        Ok((index, t)) => (index, t),
+        Err(s) => {
+            return Err(s);
+        }
+    };
 
     // angle of petel minus angle of corresponding petel in the catalogue flower pattern, it is
     // always positive, so in range [0, 2pi)
@@ -124,40 +105,11 @@ fn generate_flower_pattern_from_observation(
 /// possibly indicating a false central star, or many false stars as petels
 /// TODO make a better choice function
 fn match_catalogue_star_to_central(
-    R_rs: &mut Vec<Vec<Complex<f64>>>,
-    R_deltas: &mut Vec<Vec<Complex<f64>>>,
+    R_fs: &mut Vec<Vec<Complex<f64>>>,
 ) -> Result<(u16, u16), String> {
-    let p: u16 = R_rs.len() as u16 / 3;
-    let best_matches_r = top_match_candidates(R_rs, p)?;
-    let best_matches_delta = top_match_candidates(R_deltas, p)?;
-
-    // a vector of (central_star_index, tau) elements which are in both the best matches for R and
-    // delta
-    let mut matching_star: Vec<(u16, u16, f64)> = vec![];
-    for i in 0..p as usize {
-        for j in 0..p as usize {
-            let (r_star_index, r_tau, r_score) = best_matches_r[i];
-            let (delta_star_index, delta_tau, delta_score) = best_matches_delta[j];
-            if (r_star_index, r_tau) == (delta_star_index, delta_tau) {
-                matching_star.push((r_star_index, r_tau, r_score + delta_score));
-                // matching_star.push((r_star_index, r_tau, r_score));
-            }
-        }
-    }
-
-    if matching_star.len() == 0 {
-        // return Ok((best_matches_r[0].0, best_matches_r[0].1));
-        return Err("there are no stars which match both the r'(i) and delta'(i) of the observed flower pattern".to_string());
-    }
-    let match_with_highest_score = matching_star
-        .iter()
-        .max_by(|&&(_, _, s1), &&(_, _, s2)| s1.partial_cmp(&s2).unwrap())
-        .unwrap();
-    Ok((match_with_highest_score.0, match_with_highest_score.1))
-    // // this is the match that is the best according to distance from central star measurements
-    // // (r'(i)). the matching_star vector is sorted by the score of matches from r'(i)
-    // // most of the times the matching_star vec will have one element anyways(i hope)
-    // Ok(matching_star[0])
+    let p: u16 = R_fs.len() as u16 / 3;
+    let best_matches_r = top_match_candidates(R_fs, p)?;
+    Ok((best_matches_r[0].0, best_matches_r[0].1))
 }
 /// this function looks at an R vector (as in wiki article) and returns the top p candidates for
 /// matches, as per some score function inside this one
@@ -240,6 +192,7 @@ fn top_match_candidates(
 
     Ok(final_result)
 }
+
 /// determines how much the camera is rotated counter-clockwise(so return value is always in the range [0, 2pi)) relative to a sky coordinate system (see README)
 /// centered at the determined central star
 /// observed_pattern - the observed flower pattern with star coordinates in the camera coordinate
