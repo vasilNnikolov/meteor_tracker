@@ -46,12 +46,7 @@ pub fn get_rotation_matrix(
         R_fs.push(R_f);
     }
 
-    let (central_star_true_index, tau) = match match_catalogue_star_to_central(&mut R_fs) {
-        Ok((index, t)) => (index, t),
-        Err(s) => {
-            return Err(s);
-        }
-    };
+    let (central_star_true_index, tau) = match_catalogue_star_to_central(&R_fs)?;
 
     // angle of petel minus angle of corresponding petel in the catalogue flower pattern, it is
     // always positive, so in range [0, 2pi)
@@ -104,33 +99,10 @@ fn generate_flower_pattern_from_observation(
 /// if not, it could not match sufficiently well any star on the catalogue to the central star,
 /// possibly indicating a false central star, or many false stars as petels
 /// TODO make a better choice function
-fn match_catalogue_star_to_central(
-    R_fs: &mut Vec<Vec<Complex<f64>>>,
-) -> Result<(u16, u16), String> {
-    let p: u16 = R_fs.len() as u16 / 3;
-    let best_matches_r = top_match_candidates(R_fs, p)?;
-    Ok((best_matches_r[0].0, best_matches_r[0].1))
-}
-/// this function looks at an R vector (as in wiki article) and returns the top p candidates for
-/// matches, as per some score function inside this one
-/// returns - a result of Vector of tuples (star_index, tau, score), the vector has length p. The vector
-/// is sorted by highest score first. Score is calculated as per get_score_tau fn inside this one,
-/// and higher is better, highest being 1
-/// if it does not find enough good matches or deems the best matches too bad it returns an error
-/// with the corresponding message
-/// R needs to be mutable to allow for inplace inverse fft, using which it determines the best
-/// matching stars
-fn top_match_candidates(
-    R: &mut Vec<Vec<Complex<f64>>>,
-    p: u16,
-) -> Result<Vec<(u16, u16, f64)>, String> {
+fn match_catalogue_star_to_central(R: &Vec<Vec<Complex<f64>>>) -> Result<(u16, u16), String> {
     let n = R.len();
-    if n < p as usize {
-        return Err(format!("The passed value for R vector has less elements than the required {} top matches ({} < {})", 
-                p, n, p));
-    }
-    let mut planner = FftPlanner::new();
     let k = R[0].len();
+    let mut planner = FftPlanner::new();
     let inverse_fft = planner.plan_fft_inverse(k);
 
     #[derive(Copy, Clone)]
@@ -144,53 +116,40 @@ fn top_match_candidates(
         let (max_r_index, max_r_value): (usize, f64) = r
             .iter()
             .enumerate()
-            .map(|(i, c)| (i, c.norm()))
+            .map(|(i, &c)| (i, c.norm()))
             .max_by(|&(_, f1), &(_, f2)| f1.partial_cmp(&f2).unwrap())
             .unwrap();
 
         let k = r.len();
-        let residual_quadratic =
-            r.iter().map(|&c| c.norm().powi(2)).sum::<f64>() - max_r_value.powi(2);
-        // let score: f64 = 1.0 - (residual_quadratic/(k - 1) as f64).powf(0.5)/max_r_value;
+        let residual_quadratic = (r.iter().map(|&c| c.norm().powi(2)).sum::<f64>()
+            - max_r_value.powi(2))
+            / (k - 1) as f64;
+
         let score: f64 = 1.0 - (residual_quadratic).powf(0.5) / max_r_value;
         (score, max_r_index as u16)
     }
+    let mut R_mut = R.clone();
 
     let mut matches: Vec<BestMatch> = vec![];
     for index in 0..n {
-        inverse_fft.process(&mut R[index]);
-        let (score, tau) = get_score_tau(&R[index]);
+        inverse_fft.process(&mut R_mut[index]);
+        let (score, tau) = get_score_tau(&R_mut[index]);
         matches.push(BestMatch {
             score,
             central_star_index: index as u16,
             tau,
         });
     }
-    // TODO make finding the the top p best matches happen in the upper loop, for better efficiency
-    let mut top_p_matches: Vec<BestMatch> = vec![];
-    for _ in 0..p {
-        let (best_match_index, &best_match) = matches
-            .iter()
-            .enumerate()
-            .max_by(|&(_, m1), &(_, m2)| m1.score.partial_cmp(&(m2.score)).unwrap())
-            .unwrap();
-        top_p_matches.push(best_match);
-        // so the next iteration does not pick up the same maximum in score
-        matches.remove(best_match_index);
-    }
 
-    let final_result: Vec<(u16, u16, f64)> = top_p_matches
+    let best_match = matches
         .iter()
-        .map(|&bm| {
-            (
-                bm.central_star_index,
-                (k as u16 - bm.tau) % k as u16,
-                bm.score,
-            )
-        })
-        .collect();
+        .max_by(|&a, &b| a.score.partial_cmp(&b.score).unwrap())
+        .unwrap();
 
-    Ok(final_result)
+    Ok((
+        best_match.central_star_index,
+        (k as u16 - best_match.tau) % k as u16,
+    ))
 }
 
 /// determines how much the camera is rotated counter-clockwise(so return value is always in the range [0, 2pi)) relative to a sky coordinate system (see README)

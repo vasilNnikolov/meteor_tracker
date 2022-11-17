@@ -95,7 +95,9 @@ pub fn get_f_values(pattern: &flower::FlowerPattern) -> Vec<Complex<f64>> {
     let k: usize = pattern.r.len();
     for i in 0..k {
         let (delta_1, delta_2) = (pattern.delta[i], pattern.delta[(i + 1) % k]);
-        let lower_delta = if delta_1 > delta_2 { delta_2 } else { delta_1 };
+        // let lower_delta = if delta_1 > delta_2 { delta_2 } else { delta_1 };
+        // let lower_delta = std::cmp::max_by(delta_1, delta_2, |a, b| a.partial_cmp(&b).unwrap());
+        let lower_delta = 1.0;
         f_values.push(Complex::new(pattern.r[i] * lower_delta, 0.0));
     }
 

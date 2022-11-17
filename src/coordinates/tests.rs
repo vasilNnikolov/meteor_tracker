@@ -153,16 +153,16 @@ fn test_main_fun_of_module() {
     println!("captured {} stars in fov", captured_stars.len());
 
     let experiment_R = get_rotation_matrix(&captured_stars, &DFT_db, &flower_patterns).unwrap();
-    println!("exp: {:?}", experiment_R);
-    println!("real: {:?}", R);
+    println!("exp: {}", experiment_R);
+    println!("real: {}", R);
 }
 #[test]
-fn long_test() {
+fn normal_long_test() {
     let fov = 0.52;
     let k = 10;
     let (DFT_db, flower_patterns) = generate_database::generate_db(4.0, k, fov).unwrap();
     let all_stars: Vec<star::Star> = flower_patterns.iter().map(|fp| fp.central_star).collect();
-    for i in 0..1000 {
+    for i in 0..100 {
         let R = generate_random_orthogonal_matrix();
         let R_inv = R.try_inverse().unwrap();
 
@@ -178,7 +178,7 @@ fn long_test() {
             .collect();
 
         let experiment_R = get_rotation_matrix(&captured_stars, &DFT_db, &flower_patterns).unwrap();
-        if i % 200 == 0 {
+        if i % 20 == 0 {
             println!("real: {}", R);
             println!("expe: {}", experiment_R);
         }
@@ -197,7 +197,7 @@ fn get_score_of_guess(actual_matrix: Matrix3<f64>, experimental_matrix: Matrix3<
 #[test]
 fn randomized_long_test() {
     let mut rng = rand::thread_rng();
-    let rand_coefficient = 0.01;
+    let rand_coefficient = 0.000;
     fn get_random_observed_coords(
         acutal_coords: Vector3<f64>,
         R_inv: Matrix3<f64>,
@@ -216,7 +216,7 @@ fn randomized_long_test() {
     let all_stars: Vec<star::Star> = flower_patterns.iter().map(|fp| fp.central_star).collect();
     let mut good_tests = 0;
     let N = 500;
-    for i in 0..N {
+    for _ in 0..N {
         let R = generate_random_orthogonal_matrix();
         let R_inv = R.try_inverse().unwrap();
 
@@ -233,7 +233,7 @@ fn randomized_long_test() {
 
         let experiment_R = get_rotation_matrix(&captured_stars, &DFT_db, &flower_patterns).unwrap();
         let score = get_score_of_guess(R, experiment_R);
-        if score > 1.0 - 2.0 * rand_coefficient {
+        if score > 0.90 {
             println!("Ok");
             good_tests += 1;
         } else {
